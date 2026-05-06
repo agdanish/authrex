@@ -89,13 +89,13 @@ Prior authorization is **the single largest administrative tax on US oncology**.
               ├──────────────────────────────────────────────────────────────┤
               │                                                              │
               │  Coordinator drops a PDF →                                   │
-              │       Document Intake (Textract + pypdf + clinical-gate)    │
-              │   →   ClinicalSnapshot (typed Pydantic, FHIR R4)            │
+              │       Document Intake (Textract + pypdf + clinical-gate)     │
+              │   →   ClinicalSnapshot (typed Pydantic, FHIR R4)             │
               │   →   7-agent LangGraph DAG on AWS Bedrock                   │
-              │   →   APPROVE / DENY / REFER + Citation Chain + Appeal      │
-              │   →   Da Vinci PAS Bundle + X12 278 bridge                  │
-              │   →   TriZetto AI Gateway (Cognizant-native)                │
-              │   →   SHA-256 chained Evidence Pack (CMS-0057-F § IV.C)     │
+              │   →   APPROVE / DENY / REFER + Citation Chain + Appeal       │
+              │   →   Da Vinci PAS Bundle + X12 278 bridge                   │
+              │   →   TriZetto AI Gateway (Cognizant-native)                 │
+              │   →   SHA-256 chained Evidence Pack (CMS-0057-F § IV.C)      │
               │                                                              │
               │   Average decision time:  76.5 seconds                       │
               │   AMA median (manual):    18 minutes                         │
