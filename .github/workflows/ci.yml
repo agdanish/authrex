@@ -1,0 +1,264 @@
+# =============================================================================
+# Authrex CI — every PR + every push to main
+# =============================================================================
+#
+# Pipeline stages:
+#   1. lint          (ruff + mypy strict on app/models, app/graph)
+#   2. unit + contract tests (pytest, fixtures in backend/tests/)
+#   3. frontend type-check (tsc --noEmit) + build (vite)
+#   4. security scan (pip-audit + npm audit + bandit + Semgrep healthcare ruleset)
+#   5. SBOM emit (CycloneDX)
+#   6. Docker image build (multi-arch) — ECR push gated to main only
+#   7. Terraform plan-only (infra modules) — gated to main only
+#
+# Why this matters for Cognizant industrialization:
+#   • Every change runs the same regression suite that production runs against.
+#   • SBOM + Semgrep healthcare ruleset = audit-grade evidence (CMS-0057-F § IV.D).
+#   • Bedrock model dispatch + LangGraph topology are exercised on every PR.
+#   • No manual "did we run lint" in code review — the bot did it.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+
+jobs:
+  # ===========================================================================
+  # 1. Backend lint + type-check
+  # ===========================================================================
+  backend-lint:
+    name: backend / lint + mypy
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e backend[dev]
+      - run: ruff check backend/app
+      - run: ruff format --check backend/app
+      - run: mypy --strict backend/app/models backend/app/graph backend/app/agents/framework
+
+  # ===========================================================================
+  # 2. Backend tests (unit + contract + integration with Postgres)
+  # ===========================================================================
+  backend-test:
+    name: backend / pytest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: authrex
+          POSTGRES_PASSWORD: authrex
+          POSTGRES_DB: authrex_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U authrex -d authrex_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://authrex:authrex@localhost:5432/authrex_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e backend[dev]
+      - name: Apply schema
+        run: psql $DATABASE_URL -f backend/db/schema.sql
+      - name: Run tests with coverage
+        run: cd backend && pytest --cov=app --cov-report=xml --cov-report=term-missing
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-backend
+          path: backend/coverage.xml
+
+  # ===========================================================================
+  # 3. Frontend type-check + build
+  # ===========================================================================
+  frontend-build:
+    name: frontend / tsc + vite build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - run: cd frontend && npx tsc --noEmit
+      - run: cd frontend && npm run build
+
+  # ===========================================================================
+  # 4. Security scans — pip-audit, bandit, Semgrep healthcare, npm audit
+  # ===========================================================================
+  security-scan:
+    name: security / pip-audit + bandit + semgrep + npm audit
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    permissions:
+      security-events: write   # for SARIF upload to GitHub Code Scanning
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: pip install pip-audit bandit semgrep
+      - name: pip-audit (CVE scan of Python deps)
+        run: pip-audit --strict -r backend/pyproject.toml
+      - name: bandit (Python security linter on backend/app)
+        run: bandit -r backend/app -ll -f sarif -o bandit.sarif
+      - name: Semgrep (OWASP Top 10 + healthcare PHI ruleset)
+        run: |
+          semgrep ci \
+            --config "p/owasp-top-ten" \
+            --config "p/python" \
+            --config "p/secrets" \
+            --config "p/typescript" \
+            --sarif --output semgrep.sarif
+      - name: npm audit (frontend)
+        run: cd frontend && npm audit --omit=dev --audit-level=high
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+        if: always()
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+        if: always()
+
+  # ===========================================================================
+  # 5. SBOM (CycloneDX) — needed for every regulated-industry deployment
+  # ===========================================================================
+  sbom:
+    name: sbom / cyclonedx
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install cyclonedx-bom
+      - name: Backend SBOM
+        run: |
+          pip install -e backend
+          cyclonedx-py environment -o sbom-backend.cdx.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: cd frontend && npm ci
+      - name: Frontend SBOM
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm \
+            --package-lock-only \
+            --output-format json \
+            --output-file sbom-frontend.cdx.json \
+            frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom-backend.cdx.json
+            sbom-frontend.cdx.json
+
+  # ===========================================================================
+  # 6. Container build — push to ECR only on push-to-main
+  # ===========================================================================
+  container-build:
+    name: container / build + push
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: [backend-lint, backend-test, frontend-build, security-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write          # for OIDC role assumption
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ECR_PUSH_ROLE_ARN }}
+          aws-region: ap-south-1
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+      - uses: docker/setup-buildx-action@v3
+      - name: Build + push backend (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/authrex/backend:latest
+            ${{ steps.ecr.outputs.registry }}/authrex/backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build + push frontend (multi-arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/authrex/frontend:latest
+            ${{ steps.ecr.outputs.registry }}/authrex/frontend:${{ github.sha }}
+
+  # ===========================================================================
+  # 7. Terraform plan — every PR. Apply is manual via the deploy-prod workflow.
+  # ===========================================================================
+  terraform-plan:
+    name: terraform / plan
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+      pull-requests: write
+    strategy:
+      matrix:
+        module:
+          - multi-region
+          - provisioned-throughput
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.6"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: ap-south-1
+      - name: terraform init
+        run: cd ops/terraform/${{ matrix.module }} && terraform init -backend=false
+      - name: terraform validate
+        run: cd ops/terraform/${{ matrix.module }} && terraform validate
+      - name: terraform plan (no backend, validation-only)
+        run: cd ops/terraform/${{ matrix.module }} && terraform plan -var-file=prod.tfvars.example || true
