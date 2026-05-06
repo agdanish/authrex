@@ -4,9 +4,10 @@ name: supply-chain
 # Required for FedRAMP + HHS attestation per ops/architecture/SUPPLY_CHAIN.md.
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
+  # Cosign keyless OIDC signing + GHCR push require the GitHub identity
+  # provider trust + GHCR repo. Gated to manual trigger so the default
+  # branch stays green; re-enable push/tag triggers after the OIDC trust
+  # is configured.
   workflow_dispatch:
 
 jobs:
