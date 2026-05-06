@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================================================
+   Semantic token system. Light values on :root (default).
+   Dark mode = .dark class on <html>. Driven by lib/theme.ts.
+
+   Format: space-separated RGB triplets (no rgb() wrapper, no commas) so
+   Tailwind's `<alpha-value>` substitution works in arbitrary opacity classes.
+   ============================================================================= */
+
+:root {
+  /* Surfaces */
+  --surface-bg:        250 251 252;   /* #fafbfc — app background */
+  --surface-raised:    255 255 255;   /* #ffffff — cards */
+  --surface-raised-hi: 248 250 252;   /* #f8fafc — hovered cards */
+  --surface-border:    229 231 235;   /* #e5e7eb — hairlines */
+  --surface-border-hi: 203 213 225;   /* #cbd5e1 — hovered borders */
+  --surface-panel:     241 245 249;   /* #f1f5f9 — sidebar / muted strips */
+
+  /* Ink */
+  --ink-primary: 15 23 42;     /* #0f172a — headings */
+  --ink-body:    51 65 85;     /* #334155 — paragraph */
+  --ink-muted:   100 116 139;  /* #64748b — labels */
+  --ink-faint:   148 163 184;  /* #94a3b8 — placeholders */
+  --ink-invert:  255 255 255;  /* on accent backgrounds */
+
+  /* Accent */
+  --accent-brand:      79  70 229;   /* #4f46e5 — indigo (primary action) */
+  --accent-brand-soft: 238 242 255;  /* #eef2ff — bg tint */
+  --accent-brand-glow: 129 140 248;  /* #818cf8 — glow / second stop */
+  --accent-cyan:       8 145 178;    /* #0891b2 — secondary accent */
+  --accent-green:      5 150 105;    /* #059669 — APPROVE */
+  --accent-red:        225 29 72;    /* #e11d48 — DENY */
+  --accent-amber:      217 119 6;    /* #d97706 — REFER */
+  --accent-blue:       37 99 235;    /* #2563eb — clinical citations */
+  --accent-violet:     124 58 237;   /* #7c3aed — policy citations */
+}
+
+.dark {
+  --surface-bg:        8 9 12;
+  --surface-raised:    14 16 21;
+  --surface-raised-hi: 19 22 29;
+  --surface-border:    31 35 48;
+  --surface-border-hi: 42 48 64;
+  --surface-panel:     12 14 19;
+
+  --ink-primary: 244 245 247;
+  --ink-body:    197 200 210;
+  --ink-muted:   124 128 148;
+  --ink-faint:   74 79 96;
+  --ink-invert:  255 255 255;
+
+  --accent-brand:      124 92 255;   /* #7c5cff — softer purple in dark */
+  --accent-brand-soft: 30 27 75;     /* #1e1b4b */
+  --accent-brand-glow: 167 139 250;  /* #a78bfa */
+  --accent-cyan:       34 211 238;
+  --accent-green:      52 211 153;
+  --accent-red:        251 113 133;
+  --accent-amber:      251 191 36;
+  --accent-blue:       96 165 250;
+  --accent-violet:     192 132 252;
+}
+
+@layer base {
+  html {
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background-color: rgb(var(--surface-bg));
+    color: rgb(var(--ink-body));
+    font-feature-settings: "cv11", "ss01";
+  }
+  /* Tabular numbers for stat tiles, costs, latencies */
+  .nums-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Prevent layout shift from scrollbar */
+  html {
+    scrollbar-gutter: stable;
+  }
+  /* Focus ring (accent-brand at 60% opacity, 2px) */
+  *:focus-visible {
+    outline: 2px solid rgb(var(--accent-brand) / 0.6);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* Selection */
+  ::selection {
+    background-color: rgb(var(--accent-brand) / 0.25);
+    color: rgb(var(--ink-primary));
+  }
+}
+
+/* =============================================================================
+   Custom keyframes — defined in raw CSS so they're guaranteed to load
+   regardless of Tailwind's JIT inclusion rules. Custom CSS classes below
+   reference these by name; if Tailwind didn't see an `animate-stagger-word`
+   utility used in JSX, it wouldn't emit the keyframe — so we define here.
+   ============================================================================= */
+@keyframes stagger-word {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(40px, -30px, 0) scale(1.05); }
+}
+
+@layer utilities {
+  /* Aurora blob — used on Dashboard hero. Layered absolute, behind content. */
+  .aurora-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(120px);
+    pointer-events: none;
+    will-change: transform;
+  }
+  /* Kinetic word — staggered fade+rise. Apply --delay inline. */
+  .kinetic-word {
+    display: inline-block;
+    opacity: 0;
+    animation: stagger-word 0.45s cubic-bezier(0.2, 0, 0, 1) both;
+    animation-delay: var(--delay, 0ms);
+  }
+  /* Brand gradient text with safe fallback — never invisible.
+     Uses background-clip but inherits a solid color first via -webkit-text-fill-color. */
+  .text-gradient-brand {
+    color: rgb(var(--accent-brand));
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--accent-brand)) 0%,
+      rgb(var(--accent-brand-glow)) 50%,
+      rgb(var(--accent-cyan)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  /* If background-clip fails, the solid color is still visible — fix for the
+     Claude Design Wave 1 light-mode bug where gradient + transparent + white = invisible. */
+  @supports not (background-clip: text) {
+    .text-gradient-brand {
+      -webkit-text-fill-color: rgb(var(--accent-brand));
+    }
+  }
+
+  /* Reduced motion — globally disable long animations */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

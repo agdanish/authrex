@@ -1,0 +1,130 @@
+# Authrex — Helm values (default = dev-friendly; override per-customer)
+#
+# Cell-aware: every customer gets their own (cell_id, namespace) pair.
+# Override at install time:
+#   helm install authrex-cell1 ./charts/authrex \
+#     --namespace authrex-cell1 --create-namespace \
+#     -f charts/authrex/values-cell1.yaml
+
+global:
+  cellId: cell-0-apac-1
+  region: ap-south-1
+  environment: prod
+  imageRegistry: ghcr.io/aerofyta
+  imagePullPolicy: IfNotPresent
+  imageTag: ""             # auto-set by ArgoCD Image Updater
+
+api:
+  replicaCount: 5
+  image:
+    repository: authrex-backend
+  resources:
+    requests: { cpu: "500m", memory: "512Mi" }
+    limits:   { cpu: "2",    memory: "2Gi" }
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8000
+  ingress:
+    enabled: true
+    className: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/healthcheck-path: /api/v1/healthz
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: '443'
+    hosts:
+    - host: api.authrex.example.com
+      paths: [{ path: /, pathType: Prefix }]
+    tls:
+    - hosts: [api.authrex.example.com]
+      secretName: authrex-api-tls
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+  hpa:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 30
+    targetCPUUtilizationPercentage: 70
+
+worker:
+  replicaCount: 2          # KEDA scales 2..50 on queue depth
+  image:
+    repository: authrex-worker
+  resources:
+    requests: { cpu: "300m", memory: "512Mi" }
+    limits:   { cpu: "2",    memory: "2Gi" }
+  terminationGracePeriodSeconds: 90   # paired with app/graceful_shutdown.py
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  keda:
+    enabled: true
+    pollingInterval: 30
+    minReplicas: 2
+    maxReplicas: 50
+    cooldownPeriod: 300
+    targetQueryValue: "5"
+
+config:
+  llmProvider: bedrock
+  bedrockModelId: apac.anthropic.claude-sonnet-4-6-20251022-v1:0
+  bedrockHaikuModelId: apac.anthropic.claude-haiku-4-5-20251001-v1:0
+  awsRegion: ap-south-1
+  genaiGatewayEnabled: true
+  v1SunsetDate: ""         # set when v2 reaches GA
+  redisUrl: ""             # set when multi-replica SSE is required
+  databaseReadUrl: ""      # Aurora reader endpoint; falls back to writer
+
+# When postgresql.enabled = true, deploys a sidecar Postgres for dev only.
+# In production, point app at AWS Aurora.
+postgresql:
+  enabled: false
+  auth:
+    username: authrex
+    database: authrex
+
+redis:
+  enabled: false
+
+serviceAccount:
+  create: true
+  annotations:
+    # Override per cell/customer to wire IRSA
+    eks.amazonaws.com/role-arn: ""
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  fsGroup: 65534
+  seccompProfile: { type: RuntimeDefault }
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: ["ALL"] }
+
+# NetworkPolicy: deny-all by default, allow only the egresses we explicitly
+# document below (Bedrock VPC endpoint, Postgres, Redis, OTel collector).
+networkPolicy:
+  enabled: true
+  egressAllowed:
+  - { name: postgres,           cidr: 10.0.0.0/16, port: 5432 }
+  - { name: redis,              cidr: 10.0.0.0/16, port: 6379 }
+  - { name: bedrock-vpc-endpoint, cidr: 10.0.0.0/16, port: 443 }
+  - { name: otel-collector,     cidr: 10.0.0.0/16, port: 4317 }
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+  podMonitor:
+    enabled: false
+  prometheusRule:
+    enabled: true            # SLO burn-rate alerts from ops/sre/SLO.yaml
+
+linkerd:
+  enabled: true              # auto-injects sidecar; round 10 ADR documents

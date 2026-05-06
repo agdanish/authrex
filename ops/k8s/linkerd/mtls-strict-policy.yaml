@@ -1,0 +1,54 @@
+# mTLS-strict mode for the authrex namespace.
+# APPLY ONLY AFTER Step 7 of ops/k8s/linkerd/README.md.
+#
+# This refuses any unauthenticated request to authrex pods. Set to "permissive"
+# during the first week of operation; flip to "strict" once observed traffic
+# confirms all callers are mesh-enrolled.
+
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: authrex-api
+  namespace: authrex
+spec:
+  podSelector:
+    matchLabels: { app: authrex, tier: api }
+  port: 8000
+  proxyProtocol: HTTP/2
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: authrex-api-mesh-only
+  namespace: authrex
+spec:
+  server:
+    name: authrex-api
+  client:
+    meshTLS:
+      identities:
+        - "*.authrex.serviceaccount.identity.linkerd.cluster.local"
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: authrex-worker
+  namespace: authrex
+spec:
+  podSelector:
+    matchLabels: { app: authrex, tier: worker }
+  port: 8000
+  proxyProtocol: HTTP/2
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: authrex-worker-mesh-only
+  namespace: authrex
+spec:
+  server:
+    name: authrex-worker
+  client:
+    meshTLS:
+      identities:
+        - "*.authrex.serviceaccount.identity.linkerd.cluster.local"

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Authrex logo — extracted verbatim from the live app's
+  AuthrexMark component (components.jsx, line 349).
+  Vector · transparent background · scales infinitely.
+  viewBox 0 0 32 32 (square). Render at any size.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="1024" height="1024">
+  <defs>
+    <linearGradient id="axShieldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#1f4dbf" />
+      <stop offset="60%"  stop-color="#0033a1" />
+      <stop offset="100%" stop-color="#1a2b5c" />
+    </linearGradient>
+    <linearGradient id="axShieldGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="axTeal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#00b5b8" />
+      <stop offset="100%" stop-color="#00a3e0" />
+    </linearGradient>
+  </defs>
+
+  <!-- shield body -->
+  <path d="M16 1.5 L28 5 V14.5 C28 22 22.6 27.6 16 30.5 C9.4 27.6 4 22 4 14.5 V5 Z"
+        fill="url(#axShieldGrad)" stroke="#0a1f44" stroke-width="0.6" />
+  <path d="M16 1.5 L28 5 V14.5 C28 22 22.6 27.6 16 30.5 C9.4 27.6 4 22 4 14.5 V5 Z"
+        fill="url(#axShieldGloss)" />
+
+  <!-- medical cross -->
+  <rect x="14.5" y="7" width="3" height="16" rx="0.7" fill="#ffffff" opacity="0.92" />
+  <rect x="8.5" y="13" width="15" height="3" rx="0.7" fill="#ffffff" opacity="0.92" />
+
+  <!-- teal AI signal waveform across the bottom -->
+  <path d="M7 19.5 L10 19.5 L11.2 17 L13 22 L14.5 18.5 L16 21 L17.5 18.5 L19 22 L20.8 17 L22 19.5 L25 19.5"
+        fill="none" stroke="url(#axTeal)" stroke-width="1.2"
+        stroke-linecap="round" stroke-linejoin="round" />
+</svg>

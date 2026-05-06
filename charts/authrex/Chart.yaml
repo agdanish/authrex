@@ -1,0 +1,41 @@
+apiVersion: v2
+name: authrex
+description: |
+  Authrex — provider-side prior-authorisation copilot for oncology.
+  Multi-agent orchestration on AWS Bedrock + Claude Sonnet 4.6.
+  Cell-aware, RLS-enforced, KEDA-autoscaled.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/aerofyta/authrex
+sources:
+- https://github.com/aerofyta/authrex
+maintainers:
+- name: AeroFyta Health Sciences
+  email: ops@aerofyta.health
+keywords:
+- prior-authorization
+- healthcare
+- bedrock
+- multi-agent
+- langgraph
+- claude
+- cms-0057-f
+icon: https://raw.githubusercontent.com/aerofyta/authrex/main/logo/authrex.png
+dependencies:
+- name: postgresql
+  version: 15.5.x
+  repository: https://charts.bitnami.com/bitnami
+  condition: postgresql.enabled
+- name: redis
+  version: 19.5.x
+  repository: https://charts.bitnami.com/bitnami
+  condition: redis.enabled
+annotations:
+  category: HealthcareIT
+  artifacthub.io/license: MIT
+  artifacthub.io/links: |
+    - name: Repository
+      url: https://github.com/aerofyta/authrex
+    - name: Documentation
+      url: https://authrex.readthedocs.io
