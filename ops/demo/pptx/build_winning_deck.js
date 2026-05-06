@@ -210,7 +210,7 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'CAQH Index 2024 · AMA Prior Auth Survey 2024', true);
-  addPageNum(s, 2, 18, true);
+  addPageNum(s, 2, 20, true);
 }
 
 // =============================================================
@@ -283,7 +283,7 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'CAQH Index 2024 · AMA Prior Auth Survey 2024 · KFF Medicare Advantage 2024 · ASCO QOPI 2024', false);
-  addPageNum(s, 3, 18);
+  addPageNum(s, 3, 20);
 }
 
 // =============================================================
@@ -363,7 +363,7 @@ function lightBackground(slide) {
     fontSize: 13, fontFace: F.mono, valign: 'middle', align: 'center', charSpacing: 1,
   });
 
-  addPageNum(s, 4, 18);
+  addPageNum(s, 4, 20);
 }
 
 // =============================================================
@@ -432,7 +432,7 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'Authrex codebase, May 5 2026 audit · Anthropic-Cognizant partnership announcement, Nov 4 2024', false);
-  addPageNum(s, 5, 18);
+  addPageNum(s, 5, 20);
 }
 
 // =============================================================
@@ -493,7 +493,7 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'Authrex source code (github.com/aerofyta/authrex) · Internal architecture spec PROPOSAL.md', false);
-  addPageNum(s, 6, 18);
+  addPageNum(s, 6, 20);
 }
 
 // =============================================================
@@ -505,71 +505,244 @@ function lightBackground(slide) {
   addBrandStrip(s);
 
   s.addText('5 · TECHNICAL DESIGN & ARCHITECTURE', {
+    x: 0.5, y: 0.85, w: 9, h: 0.4,
+    fontSize: 13, fontFace: F.mono, color: C.indigo,
+    charSpacing: 6, bold: true,
+  });
+  // AAOSA badge top-right — promotes the Cognizant alignment from footer
+  s.addShape('rect', {
+    x: 9.7, y: 0.78, w: 3.1, h: 0.5,
+    fill: { color: C.navy }, line: { color: C.cyan, width: 1 },
+  });
+  s.addText('NEURO-SAN AAOSA · COGNIZANT', {
+    x: 9.7, y: 0.78, w: 3.1, h: 0.5,
+    fontSize: 11, fontFace: F.mono, bold: true, color: C.cyan,
+    align: 'center', valign: 'middle', charSpacing: 3,
+  });
+  s.addText('Six layers. Concentric. One responsibility each.', {
+    x: 0.5, y: 1.35, w: 12, h: 0.7,
+    fontSize: 26, fontFace: F.head, bold: true, color: C.textInk,
+  });
+
+  // ===========================================================
+  // CONCENTRIC RINGS (left half) — L1 innermost, L6 outermost
+  // ===========================================================
+  const cx = 3.4, cy = 4.4;          // ring centre — pulled up so ring
+  // doesn't crash into the source footer at y=7.0.
+  const radii = { L6: 2.1, L5: 1.75, L4: 1.4, L3: 1.05, L2: 0.7, L1: 0.35 };
+
+  const ringSpec = [
+    { num: 'L6', color: C.green,  outerR: radii.L6, innerR: radii.L5 },
+    { num: 'L5', color: '0284C7', outerR: radii.L5, innerR: radii.L4 },
+    { num: 'L4', color: C.cyan,   outerR: radii.L4, innerR: radii.L3 },
+    { num: 'L3', color: C.indigo, outerR: radii.L3, innerR: radii.L2 },
+    { num: 'L2', color: C.violet, outerR: radii.L2, innerR: radii.L1 },
+    { num: 'L1', color: C.navy,   outerR: radii.L1, innerR: 0 },  // solid centre
+  ];
+
+  // Draw outer rings first; each subsequent (smaller) ellipse paints over
+  // the inside of the previous one, leaving only the band visible.
+  ringSpec.forEach((r) => {
+    s.addShape('ellipse', {
+      x: cx - r.outerR, y: cy - r.outerR,
+      w: r.outerR * 2, h: r.outerR * 2,
+      fill: { color: r.color }, line: { type: 'none' },
+    });
+  });
+
+  // Ring labels — placed on the TOP of each band (12 o'clock), white text.
+  ringSpec.forEach((r) => {
+    const labelY = cy - r.outerR + (r.outerR - r.innerR - 0.32) / 2;
+    s.addText(r.num, {
+      x: cx - 0.4, y: labelY, w: 0.8, h: 0.32,
+      fontSize: r.num === 'L1' ? 13 : 12,
+      fontFace: F.mono, bold: true, color: C.white,
+      align: 'center', valign: 'middle', charSpacing: 1,
+    });
+  });
+
+  // ===========================================================
+  // RIGHT-HAND LEGEND — six rows, outer (L6) at the top
+  // ===========================================================
+  const legendX = 7.0, legendW = 5.85;
+  const layerInfo = [
+    { num: 'L6', name: 'Ops Plane',     color: C.green,  desc: 'Runbooks · evidence packs · compliance scorecard · ROI calc' },
+    { num: 'L5', name: 'Surface Plane', color: '0284C7', desc: 'React + Vite + TS · SSE client · standalone HTML showcase' },
+    { num: 'L4', name: 'Gateway Plane', color: C.cyan,   desc: 'LLMClient · Bedrock + Anthropic + OpenRouter · cost router' },
+    { num: 'L3', name: 'Runtime Plane', color: C.indigo, desc: 'LangGraph DAG · FastAPI + SSE · case_runner · reflection' },
+    { num: 'L2', name: 'Agent Plane',   color: C.violet, desc: '7 parents · 22 sub-agents · Pydantic v2 · GraderScore' },
+    { num: 'L1', name: 'Data Plane',    color: C.navy,   desc: 'Postgres · audit_ledger · RLS · KMS · 10-yr retention' },
+  ];
+
+  const rowH = 0.62;
+  layerInfo.forEach((row, i) => {
+    const y = 2.15 + i * rowH;
+    // Color chip
+    s.addShape('rect', {
+      x: legendX, y, w: 0.55, h: rowH - 0.06,
+      fill: { color: row.color }, line: { type: 'none' },
+    });
+    s.addText(row.num, {
+      x: legendX, y, w: 0.55, h: rowH - 0.06,
+      fontSize: 12, fontFace: F.mono, bold: true, color: C.white,
+      align: 'center', valign: 'middle',
+    });
+    // Name (bold) + description
+    s.addText(row.name, {
+      x: legendX + 0.7, y: y + 0.02, w: legendW - 0.7, h: 0.26,
+      fontSize: 13, fontFace: F.head, bold: true, color: C.textInk,
+    });
+    s.addText(row.desc, {
+      x: legendX + 0.7, y: y + 0.28, w: legendW - 0.7, h: 0.28,
+      fontSize: 10.5, fontFace: F.mono, color: C.textBody,
+    });
+  });
+
+  // Dependency caption (no arrow shape — keeps the ring as the focal visual)
+  s.addText('Top-down dependency only · upper layers depend on lower, never the reverse.', {
+    x: 0.5, y: 6.55, w: 12.3, h: 0.35,
+    fontSize: 12, fontFace: F.body, italic: true, color: C.textMuted,
+    align: 'center', valign: 'middle',
+  });
+
+  addSourceFooter(s, 'Authrex architecture spec (PROPOSAL.md §6) · Cognizant Neuro-SAN AAOSA reference architecture', false);
+  addPageNum(s, 7, 20);
+}
+
+// =============================================================
+// SLIDE 8 — WHY BOUNDED COMPETENCIES BEAT ONE BIG PROMPT
+// (the Neuro-SAN AAOSA argument — explicit, side-by-side)
+// =============================================================
+{
+  const s = pres.addSlide();
+  lightBackground(s);
+  addBrandStrip(s);
+
+  s.addText('5 · WHY THIS BEATS A SINGLE-PROMPT LLM', {
     x: 0.5, y: 0.85, w: 12, h: 0.4,
     fontSize: 13, fontFace: F.mono, color: C.indigo,
     charSpacing: 6, bold: true,
   });
-  s.addText('Six concentric layers · single responsibility per layer.', {
+  s.addText('Bounded competencies > one big prompt.', {
     x: 0.5, y: 1.25, w: 12, h: 0.7,
     fontSize: 28, fontFace: F.head, bold: true, color: C.textInk,
   });
+  s.addText('Cognizant Neuro-SAN AAOSA — Adaptive Agent-Oriented Software Architecture — applied to clinical prior-auth.', {
+    x: 0.5, y: 1.85, w: 12, h: 0.32,
+    fontSize: 13, fontFace: F.body, italic: true, color: C.textMuted,
+  });
 
-  // 6 layer bands stacked
-  const layers = [
-    { num: 'L6', name: 'Ops Plane', desc: 'Runbooks · checklists · evidence packs · ROI calc · compliance scorecard', color: C.green },
-    { num: 'L5', name: 'Surface Plane', desc: 'React + Vite + TS · standalone HTML showcase · SSE client · Tweaks panel', color: '0284C7' },
-    { num: 'L4', name: 'Gateway Plane', desc: 'LLMClient interface · Bedrock + Anthropic + OpenRouter · cost-aware router', color: C.cyan },
-    { num: 'L3', name: 'Runtime Plane', desc: 'LangGraph DAG · FastAPI + uvicorn · SSE stream · case_runner worker · reflection', color: C.indigo },
-    { num: 'L2', name: 'Agent Plane', desc: '7 parents · 22 sub-agents · Pydantic v2 schemas · .txt prompts · 5-field GraderScore', color: C.violet },
-    { num: 'L1', name: 'Data Plane', desc: 'Postgres · cases · agent_runs · llm_invocations · audit_ledger · RLS · 10-yr retention', color: '475569' },
+  // ===========================================================
+  // TWO-COLUMN COMPARE TABLE
+  // ===========================================================
+  const colY = 2.45;
+  const colH = 4.0;
+  const leftX = 0.5, leftW = 6.05;
+  const rightX = 6.78, rightW = 6.05;
+
+  // Column headers
+  s.addShape('rect', {
+    x: leftX, y: colY, w: leftW, h: 0.55,
+    fill: { color: '7F1D1D' }, line: { type: 'none' },
+  });
+  s.addText('ONE BIG PROMPT', {
+    x: leftX + 0.15, y: colY, w: leftW - 0.3, h: 0.55,
+    fontSize: 14, fontFace: F.mono, bold: true, color: C.white,
+    valign: 'middle', charSpacing: 6,
+  });
+  s.addText('typical demo / monolithic LLM', {
+    x: leftX, y: colY, w: leftW - 0.15, h: 0.55,
+    fontSize: 10, fontFace: F.body, italic: true, color: 'FCA5A5',
+    align: 'right', valign: 'middle',
+  });
+
+  s.addShape('rect', {
+    x: rightX, y: colY, w: rightW, h: 0.55,
+    fill: { color: C.indigo }, line: { type: 'none' },
+  });
+  s.addText('AUTHREX  ·  AAOSA', {
+    x: rightX + 0.15, y: colY, w: rightW - 0.3, h: 0.55,
+    fontSize: 14, fontFace: F.mono, bold: true, color: C.white,
+    valign: 'middle', charSpacing: 6,
+  });
+  s.addText('7 parents · 22 sub-agents · bounded', {
+    x: rightX, y: colY, w: rightW - 0.15, h: 0.55,
+    fontSize: 10, fontFace: F.body, italic: true, color: 'A5B4FC',
+    align: 'right', valign: 'middle',
+  });
+
+  // Rows
+  const rows = [
+    {
+      axis: 'DEBUGGABILITY',
+      con: 'One prompt to inspect when a verdict is wrong. Token budget for the whole pipeline. Prompt-engineering by intuition.',
+      pro: 'Each agent ≤ 200 LoC + a Pydantic contract + a fixture-driven contract test. Fail an agent in isolation, fix it in isolation.',
+    },
+    {
+      axis: 'GRADING',
+      con: 'One score, one direction. "Did the LLM do well?" with no idea which faculty broke.',
+      pro: 'Per-agent 5-field GraderScore (correctness · grounding · completeness · format · safety) → composite + per-field deltas.',
+    },
+    {
+      axis: 'AUDITABILITY',
+      con: 'Single black box. CMS-0057-F § IV.A asks "show your reasoning" — answer is "trust the model".',
+      pro: 'Every hop emits an SSE trace event + writes an audit_ledger row. Verdict is reconstructible from the ledger alone.',
+    },
+    {
+      axis: 'COST · MODEL ROUTING',
+      con: 'One model size for everything. Simple keyword filter pays Sonnet rates.',
+      pro: 'Sonnet 4.6 on reasoning, Haiku 4.5 on retrieval / probability / grading → 4× cheaper at the same accuracy.',
+    },
+    {
+      axis: 'VERSIONING',
+      con: 'Replace the model = re-validate everything. One prompt change = unknown blast radius.',
+      pro: 'Replace one agent = run its contract test. Version each prompt + each schema independently.',
+    },
   ];
 
-  const lh = 0.65;
-  layers.forEach((l, i) => {
-    const y = 2.25 + i * lh;
-    // Label box (left)
+  const rowStartY = colY + 0.65;
+  const rowGap = (colH - 0.65) / rows.length;
+  rows.forEach((row, i) => {
+    const ry = rowStartY + i * rowGap;
+    // Axis pill (centred between the two columns visually, but anchored on left col)
     s.addShape('rect', {
-      x: 0.5, y, w: 1.6, h: lh,
-      fill: { color: l.color }, line: { type: 'none' },
+      x: leftX, y: ry, w: leftW + rightW + 0.23, h: 0.32,
+      fill: { color: C.surface }, line: { type: 'none' },
     });
-    s.addText(l.num, {
-      x: 0.55, y: y + 0.1, w: 1.5, h: 0.28,
-      fontSize: 14, fontFace: F.mono, bold: true,
-      color: C.white, charSpacing: 1,
+    s.addText(row.axis, {
+      x: leftX + 0.15, y: ry, w: leftW + rightW, h: 0.32,
+      fontSize: 11, fontFace: F.mono, bold: true, color: C.textMuted,
+      valign: 'middle', charSpacing: 4,
     });
-    s.addText(l.name, {
-      x: 0.55, y: y + 0.32, w: 1.5, h: 0.3,
-      fontSize: 14, fontFace: F.head, bold: true, color: C.white,
+    // CON cell
+    s.addText('✕  ' + row.con, {
+      x: leftX + 0.15, y: ry + 0.36, w: leftW - 0.3, h: rowGap - 0.4,
+      fontSize: 11, fontFace: F.body, color: '7F1D1D',
     });
-    // Components (right)
-    s.addShape('rect', {
-      x: 2.1, y, w: 10.7, h: lh,
-      fill: { color: C.white },
-      line: { color: C.border, width: 1 },
-    });
-    s.addText(l.desc, {
-      x: 2.3, y: y + 0.13, w: 10.4, h: 0.42,
-      fontSize: 13, fontFace: F.mono, color: C.textBody, valign: 'middle',
+    // PRO cell
+    s.addText('✓  ' + row.pro, {
+      x: rightX + 0.15, y: ry + 0.36, w: rightW - 0.3, h: rowGap - 0.4,
+      fontSize: 11, fontFace: F.body, color: C.textInk, bold: true,
     });
   });
 
-  // Tagline strip
+  // Bottom payoff strip — kept above the source-footer band (y=7.0)
   s.addShape('rect', {
-    x: 0.5, y: 6.3, w: 12.3, h: 0.55,
-    fill: { color: C.surface }, line: { color: C.border, width: 1 },
+    x: 0.5, y: 6.5, w: 12.3, h: 0.4,
+    fill: { color: C.navy }, line: { type: 'none' },
   });
-  s.addText('Each layer has ONE responsibility. Top-down dependency only. Cognizant Neuro-SAN AAOSA-aligned.', {
-    x: 0.6, y: 6.32, w: 12.1, h: 0.5,
-    fontSize: 14, fontFace: F.body, italic: true,
-    color: C.textBody, valign: 'middle', align: 'center',
+  s.addText('Each agent is replaceable, gradable, and auditable. The architecture itself is the compliance answer.', {
+    x: 0.5, y: 6.5, w: 12.3, h: 0.4,
+    fontSize: 12.5, fontFace: F.body, italic: true, color: C.cyan,
+    align: 'center', valign: 'middle',
   });
 
-  addSourceFooter(s, 'Authrex architecture spec (PROPOSAL.md §6) · Cognizant Neuro-SAN AAOSA reference architecture', false);
-  addPageNum(s, 7, 18);
+  addSourceFooter(s, 'Cognizant Neuro-SAN AAOSA reference architecture · CMS-0057-F § IV.A (Audit Trail) · Authrex llm_invocations + audit_ledger schemas', false);
+  addPageNum(s, 8, 20);
 }
 
 // =============================================================
-// SLIDE 8 — 7-AGENT DAG TOPOLOGY
+// SLIDE 9 — 7-AGENT DAG TOPOLOGY (real flow + APPROVE/REFER/DENY fork)
 // =============================================================
 {
   const s = pres.addSlide();
@@ -581,94 +754,365 @@ function lightBackground(slide) {
     fontSize: 13, fontFace: F.mono, color: C.indigo,
     charSpacing: 6, bold: true,
   });
-  s.addText('Seven parents. Twenty-two sub-agents. Bounded competencies.', {
+  s.addText('Seven parents. Visible flow. Conditional fork.', {
     x: 0.5, y: 1.25, w: 12, h: 0.7,
     fontSize: 26, fontFace: F.head, bold: true, color: C.textInk,
   });
 
-  // 7 agent cards
-  const agents = [
-    { n: 1, name: 'Clinical\nExtractor', subs: 'biomarker_specialist · phi_sanitizer · fhir_resource_validator', color: C.green, role: 'FHIR → ClinicalSnapshot' },
-    { n: 2, name: 'Policy\nRetriever', subs: 'keyword_filter · q_business_retriever · llm_reranker · citation_resolver', color: '0284C7', role: 'Hybrid policy retrieval' },
-    { n: 3, name: 'Necessity\nReasoner', subs: 'criterion_splitter · evidence_matcher (parallel) · confidence_calibrator', color: C.violet, role: 'Per-criterion MET/AMBIGUOUS' },
-    { n: 4, name: 'Decision\nComposer', subs: 'verdict_synthesizer · rationale_writer · citation_linker', color: C.indigo, role: 'Verdict + rationale + citations' },
-    { n: 5, name: 'Denial\nForecaster', subs: 'probability_estimator · reason_predictor · appeal_path_recommender', color: C.amber, role: 'Payer-side denial probability' },
-    { n: 6, name: 'Appeals\nDrafter', subs: 'counter_evidence_finder · nccn_reference_specialist · letter_composer', color: C.red, role: 'NCCN-cited appeal letter' },
-    { n: 7, name: 'Patient\nCommunicator', subs: 'action_step_writer · empathy_layer · reading_level_tuner', color: C.cyan, role: '6th-grade · zero PHI' },
+  // ================================================================
+  // TOP ROW — linear path: Extractor → Retriever → Necessity → Decision
+  // ================================================================
+  const topAgents = [
+    { name: 'Clinical\nExtractor',   model: 'sonnet 4.6', color: C.green },
+    { name: 'Policy\nRetriever',     model: 'haiku 4.5',  color: '0284C7' },
+    { name: 'Necessity\nReasoner',   model: 'sonnet 4.6', color: C.violet },
+    { name: 'Decision\nComposer',    model: 'sonnet 4.6', color: C.indigo },
   ];
 
-  // Layout: 4 + 3 (4 in row 1, 3 in row 2 with one boundary card)
-  const aw = 2.95, ah = 1.85;
-  const positions = [
-    { x: 0.5, y: 2.2 },   // 1 Clinical
-    { x: 3.6, y: 2.2 },   // 2 Policy
-    { x: 6.7, y: 2.2 },   // 3 Necessity
-    { x: 9.8, y: 2.2 },   // 4 Decision
-    { x: 0.5, y: 4.3 },   // 5 Forecaster
-    { x: 3.6, y: 4.3 },   // 6 Appeals
-    { x: 6.7, y: 4.3 },   // 7 Patient
-  ];
-
-  agents.forEach((a, i) => {
-    const p = positions[i];
-    s.addShape('rect', {
-      x: p.x, y: p.y, w: aw, h: ah,
-      fill: { color: C.white },
-      line: { color: a.color, width: 1.5 },
+  const topY = 2.15;
+  const aW = 2.55, aH = 1.15;
+  const gap = 0.45;
+  const startX = 0.5;
+  const drawAgentBox = (x, y, a) => {
+    s.addShape('roundRect', {
+      x, y, w: aW, h: aH,
+      fill: { color: C.white }, line: { color: a.color, width: 1.5 },
+      rectRadius: 0.08,
     });
     // Top accent bar
     s.addShape('rect', {
-      x: p.x, y: p.y, w: aw, h: 0.06,
+      x, y, w: aW, h: 0.07,
       fill: { color: a.color }, line: { type: 'none' },
-    });
-    // Number circle
-    s.addShape('ellipse', {
-      x: p.x + 0.15, y: p.y + 0.18, w: 0.45, h: 0.45,
-      fill: { color: a.color }, line: { type: 'none' },
-    });
-    s.addText(String(a.n), {
-      x: p.x + 0.15, y: p.y + 0.18, w: 0.45, h: 0.45,
-      fontSize: 15, fontFace: F.mono, bold: true, color: C.white,
-      align: 'center', valign: 'middle',
     });
     // Name
     s.addText(a.name.replace(/\n/g, ' '), {
-      x: p.x + 0.7, y: p.y + 0.18, w: aw - 0.85, h: 0.5,
+      x: x + 0.15, y: y + 0.15, w: aW - 0.3, h: 0.45,
       fontSize: 14, fontFace: F.head, bold: true, color: C.textInk,
     });
-    // Role (mono small)
-    s.addText(a.role, {
-      x: p.x + 0.15, y: p.y + 0.72, w: aw - 0.3, h: 0.3,
-      fontSize: 11, fontFace: F.mono, color: a.color, italic: true,
+    // Model pill
+    s.addShape('roundRect', {
+      x: x + 0.15, y: y + 0.7, w: 1.5, h: 0.28,
+      fill: { color: a.color }, line: { type: 'none' },
+      rectRadius: 0.04,
     });
-    // Sub-agents
-    s.addText(a.subs, {
-      x: p.x + 0.15, y: p.y + 1.05, w: aw - 0.3, h: 0.7,
-      fontSize: 10, fontFace: F.mono, color: C.textBody,
+    s.addText(a.model, {
+      x: x + 0.15, y: y + 0.7, w: 1.5, h: 0.28,
+      fontSize: 10, fontFace: F.mono, bold: true, color: C.white,
+      align: 'center', valign: 'middle', charSpacing: 1,
+    });
+  };
+
+  topAgents.forEach((a, i) => {
+    const x = startX + i * (aW + gap);
+    drawAgentBox(x, topY, a);
+    // Arrow to next box (skip after last)
+    if (i < topAgents.length - 1) {
+      s.addShape('rightArrow', {
+        x: x + aW + 0.04, y: topY + aH / 2 - 0.13, w: gap - 0.08, h: 0.26,
+        fill: { color: C.textMuted }, line: { type: 'none' },
+      });
+    }
+  });
+
+  // ================================================================
+  // FORK — Decision Composer's verdict branches three ways
+  // ================================================================
+  // Vertical drop from Decision Composer down to fork hub
+  const decisionX = startX + 3 * (aW + gap);            // x of Decision box
+  const forkHubX = decisionX + aW / 2;                  // centred under it
+  const forkHubY = 3.95;
+  s.addShape('rect', {
+    x: forkHubX - 0.02, y: topY + aH, w: 0.04, h: forkHubY - (topY + aH),
+    fill: { color: C.indigo }, line: { type: 'none' },
+  });
+  // Fork diamond label
+  s.addShape('roundRect', {
+    x: forkHubX - 0.9, y: forkHubY, w: 1.8, h: 0.45,
+    fill: { color: C.indigo }, line: { type: 'none' },
+    rectRadius: 0.05,
+  });
+  s.addText('verdict ?', {
+    x: forkHubX - 0.9, y: forkHubY, w: 1.8, h: 0.45,
+    fontSize: 12, fontFace: F.mono, bold: true, color: C.white,
+    align: 'center', valign: 'middle', charSpacing: 2,
+  });
+
+  // Three branches from the verdict box
+  const branchY = forkHubY + 0.8;
+  const branches = [
+    { label: 'APPROVE', color: C.green, target: 'TriZetto submission · done' },
+    { label: 'REFER',   color: C.amber, target: 'Reviewer queue · HITL' },
+    { label: 'DENY',    color: C.red,   target: 'Denial Forecaster →' },
+  ];
+  // Spread the three branches evenly across the slide width below the verdict
+  const branchXs = [1.1, 5.6, 10.1];
+  branches.forEach((b, i) => {
+    // L-shape connector from verdict box to branch label
+    const branchCx = branchXs[i] + 1.55;
+    // horizontal arm at y = forkHubY + 0.6
+    const armY = forkHubY + 0.6;
+    s.addShape('rect', {
+      x: Math.min(forkHubX, branchCx) - 0.02, y: armY,
+      w: Math.abs(branchCx - forkHubX) + 0.04, h: 0.04,
+      fill: { color: b.color }, line: { type: 'none' },
+    });
+    // vertical drop into the branch label
+    s.addShape('rect', {
+      x: branchCx - 0.02, y: armY, w: 0.04, h: branchY - armY,
+      fill: { color: b.color }, line: { type: 'none' },
+    });
+    // Branch tag (label)
+    s.addShape('roundRect', {
+      x: branchXs[i], y: branchY, w: 3.1, h: 0.42,
+      fill: { color: b.color }, line: { type: 'none' },
+      rectRadius: 0.04,
+    });
+    s.addText(b.label, {
+      x: branchXs[i], y: branchY, w: 3.1, h: 0.42,
+      fontSize: 13, fontFace: F.head, bold: true, color: C.white,
+      align: 'center', valign: 'middle', charSpacing: 4,
+    });
+    // Target description
+    s.addText(b.target, {
+      x: branchXs[i], y: branchY + 0.5, w: 3.1, h: 0.3,
+      fontSize: 11, fontFace: F.mono, color: C.textBody,
+      align: 'center', italic: true,
     });
   });
 
-  // Boundary box (final output)
-  s.addShape('rect', {
-    x: 9.8, y: 4.3, w: aw, h: ah,
-    fill: { color: C.navy }, line: { type: 'none' },
+  // ================================================================
+  // DENY tail — three more agents under the DENY branch
+  // ================================================================
+  const tailY = 5.7;
+  const tailAgents = [
+    { name: 'Denial Forecaster',     model: 'haiku 4.5',  color: C.amber, sub: 'P(denial) + reason' },
+    { name: 'Appeals Drafter',       model: 'sonnet 4.6', color: C.red,   sub: 'NCCN-cited letter' },
+    { name: 'Patient Communicator',  model: 'sonnet 4.6', color: C.cyan,  sub: '6th-grade · zero PHI' },
+  ];
+  const tailW = 3.85, tailH = 0.85, tailGap = 0.27;
+  const tailStartX = 0.6;
+  const pillW = 1.4;
+  tailAgents.forEach((a, i) => {
+    const x = tailStartX + i * (tailW + tailGap);
+    s.addShape('roundRect', {
+      x, y: tailY, w: tailW, h: tailH,
+      fill: { color: C.white }, line: { color: a.color, width: 1.5 },
+      rectRadius: 0.06,
+    });
+    s.addShape('rect', {
+      x, y: tailY, w: 0.08, h: tailH,
+      fill: { color: a.color }, line: { type: 'none' },
+    });
+    s.addText(a.name, {
+      x: x + 0.2, y: tailY + 0.06, w: tailW - 0.3, h: 0.3,
+      fontSize: 13, fontFace: F.head, bold: true, color: C.textInk,
+    });
+    s.addText(a.sub, {
+      x: x + 0.2, y: tailY + 0.4, w: tailW - pillW - 0.35, h: 0.4,
+      fontSize: 10.5, fontFace: F.mono, color: C.textBody, italic: true,
+    });
+    // Model pill (right end)
+    s.addShape('roundRect', {
+      x: x + tailW - pillW - 0.15, y: tailY + 0.45, w: pillW, h: 0.28,
+      fill: { color: a.color }, line: { type: 'none' },
+      rectRadius: 0.04,
+    });
+    s.addText(a.model, {
+      x: x + tailW - pillW - 0.15, y: tailY + 0.45, w: pillW, h: 0.28,
+      fontSize: 10, fontFace: F.mono, bold: true, color: C.white,
+      align: 'center', valign: 'middle', charSpacing: 1,
+    });
+    if (i < tailAgents.length - 1) {
+      s.addShape('rightArrow', {
+        x: x + tailW + 0.02, y: tailY + tailH / 2 - 0.1, w: tailGap - 0.06, h: 0.2,
+        fill: { color: C.textMuted }, line: { type: 'none' },
+      });
+    }
   });
-  s.addText('OUTPUT', {
-    x: 9.95, y: 4.45, w: aw - 0.3, h: 0.3,
-    fontSize: 11, fontFace: F.mono, color: C.cyan, bold: true,
-    charSpacing: 4,
-  });
-  s.addText('Decision · Citations\nAppeal letter · Audit\nTriZetto submission', {
-    x: 9.95, y: 4.8, w: aw - 0.3, h: 1.3,
-    fontSize: 13, fontFace: F.head, color: C.white, valign: 'top',
+
+  // SSE / state-object annotation — tucked above the source footer
+  s.addText('every hop → SSE trace + audit_ledger row · Pydantic v2 state', {
+    x: 0.5, y: 6.65, w: 12.3, h: 0.3,
+    fontSize: 11, fontFace: F.mono, color: C.textMuted, italic: true, align: 'center',
   });
 
   addSourceFooter(s, 'Authrex source code · 98 LLM calls verified end-to-end on case_8f4ad9c2 (May 5 2026)', false);
-  addPageNum(s, 8, 18);
+  addPageNum(s, 9, 20);
 }
 
 // =============================================================
-// SLIDE 9 — TECH STACK
+// SLIDE 10 — REAL-WORLD INPUTS · DOCUMENT INTAKE
+//   Indian hospital reality: handwritten Rx, scanned reports, faxed denials.
+//   The 7-agent DAG only runs on a typed ClinicalSnapshot — Document Intake
+//   is what turns the messy real-world input into that typed payload.
+// =============================================================
+{
+  const s = pres.addSlide();
+  lightBackground(s);
+  addBrandStrip(s);
+
+  s.addText('5 · ARCHITECTURE — DOCUMENT INTAKE', {
+    x: 0.5, y: 0.85, w: 9, h: 0.4,
+    fontSize: 13, fontFace: F.mono, color: C.indigo,
+    charSpacing: 6, bold: true,
+  });
+  // "Pre-DAG" badge top-right
+  s.addShape('rect', {
+    x: 9.7, y: 0.78, w: 3.1, h: 0.5,
+    fill: { color: C.navy }, line: { color: C.cyan, width: 1 },
+  });
+  s.addText('PRE-DAG · INDIA-READY', {
+    x: 9.7, y: 0.78, w: 3.1, h: 0.5,
+    fontSize: 11, fontFace: F.mono, bold: true, color: C.cyan,
+    align: 'center', valign: 'middle', charSpacing: 3,
+  });
+  s.addText('Indian hospital reality. Handwritten Rx, scanned reports, faxed denials.', {
+    x: 0.5, y: 1.35, w: 12, h: 0.7,
+    fontSize: 24, fontFace: F.head, bold: true, color: C.textInk,
+  });
+  s.addText('The 7-agent DAG only runs on a typed ClinicalSnapshot. Document Intake turns messy inputs into that payload.', {
+    x: 0.5, y: 1.92, w: 12, h: 0.32,
+    fontSize: 13, fontFace: F.body, italic: true, color: C.textMuted,
+  });
+
+  // ===========================================================
+  // LEFT — input types (4 cards in a 2x2 grid)
+  // ===========================================================
+  const inputs = [
+    { icon: '✍', label: 'Handwritten Rx',     sub: 'Indian Rx pad · brand names · scribbled doses', color: C.amber },
+    { icon: '📄', label: 'Scanned echo',      sub: 'Lab report · structured table · LVEF + EF',     color: C.cyan },
+    { icon: '📠', label: 'Faxed denial',      sub: 'Payer letter · printed text · stamped',          color: C.red },
+    { icon: '📷', label: 'Phone-camera scan', sub: 'Pathology slip · skewed · variable lighting',    color: C.violet },
+  ];
+  const inX = 0.5, inY = 2.4, inW = 2.6, inH = 1.55, gapX = 0.18, gapY = 0.22;
+  inputs.forEach((it, i) => {
+    const col = i % 2, row = Math.floor(i / 2);
+    const x = inX + col * (inW + gapX);
+    const y = inY + row * (inH + gapY);
+    s.addShape('roundRect', {
+      x, y, w: inW, h: inH,
+      fill: { color: C.white }, line: { color: it.color, width: 1.5 },
+      rectRadius: 0.06,
+    });
+    s.addShape('rect', {
+      x, y, w: inW, h: 0.07,
+      fill: { color: it.color }, line: { type: 'none' },
+    });
+    s.addText(it.icon, {
+      x: x + 0.15, y: y + 0.18, w: 0.5, h: 0.5,
+      fontSize: 24, fontFace: F.body, valign: 'middle',
+    });
+    s.addText(it.label, {
+      x: x + 0.7, y: y + 0.18, w: inW - 0.85, h: 0.4,
+      fontSize: 14, fontFace: F.head, bold: true, color: C.textInk,
+    });
+    s.addText(it.sub, {
+      x: x + 0.15, y: y + 0.78, w: inW - 0.3, h: 0.65,
+      fontSize: 10.5, fontFace: F.mono, color: C.textBody, italic: true,
+    });
+  });
+
+  // ===========================================================
+  // CENTER — Document Intake pipeline (3 stages)
+  // ===========================================================
+  // Arrow from input grid → intake box
+  s.addShape('rightArrow', {
+    x: 6.0, y: 3.7, w: 0.55, h: 0.4,
+    fill: { color: C.indigo }, line: { type: 'none' },
+  });
+
+  const stages = [
+    { num: '1', name: 'Classifier', detail: 'PIL stats · typed/hand/mixed · 0 LLM tokens', color: '0284C7' },
+    { num: '2', name: 'Vision Extractor', detail: 'Claude Sonnet 4.6 vision · Bedrock · structured JSON', color: C.indigo },
+    { num: '3', name: 'FHIR Shaper', detail: 'partial ClinicalSnapshot · per-field confidence', color: C.violet },
+  ];
+  const stageX = 6.7, stageY = 2.4, stageW = 3.0, stageH = 1.0, stageGap = 0.15;
+  stages.forEach((st, i) => {
+    const y = stageY + i * (stageH + stageGap);
+    s.addShape('roundRect', {
+      x: stageX, y, w: stageW, h: stageH,
+      fill: { color: C.white }, line: { color: st.color, width: 1.5 },
+      rectRadius: 0.06,
+    });
+    s.addShape('ellipse', {
+      x: stageX + 0.15, y: y + 0.22, w: 0.55, h: 0.55,
+      fill: { color: st.color }, line: { type: 'none' },
+    });
+    s.addText(st.num, {
+      x: stageX + 0.15, y: y + 0.22, w: 0.55, h: 0.55,
+      fontSize: 14, fontFace: F.mono, bold: true, color: C.white,
+      align: 'center', valign: 'middle',
+    });
+    s.addText(st.name, {
+      x: stageX + 0.85, y: y + 0.12, w: stageW - 1.0, h: 0.32,
+      fontSize: 13, fontFace: F.head, bold: true, color: C.textInk,
+    });
+    s.addText(st.detail, {
+      x: stageX + 0.85, y: y + 0.45, w: stageW - 1.0, h: 0.5,
+      fontSize: 10, fontFace: F.mono, color: C.textBody, italic: true,
+    });
+  });
+
+  // Arrow from intake → DAG
+  s.addShape('rightArrow', {
+    x: 9.85, y: 3.7, w: 0.55, h: 0.4,
+    fill: { color: C.cyan }, line: { type: 'none' },
+  });
+
+  // ===========================================================
+  // RIGHT — ClinicalSnapshot output card → "into the DAG"
+  // ===========================================================
+  s.addShape('roundRect', {
+    x: 10.55, y: 2.95, w: 2.3, h: 1.9,
+    fill: { color: C.navy }, line: { type: 'none' },
+    rectRadius: 0.08,
+  });
+  s.addText('CLINICAL\nSNAPSHOT', {
+    x: 10.6, y: 3.05, w: 2.2, h: 0.65,
+    fontSize: 14, fontFace: F.mono, bold: true, color: C.cyan,
+    align: 'center', charSpacing: 3,
+  });
+  s.addText('typed · FHIR-shaped\nready for the 7-agent DAG', {
+    x: 10.6, y: 3.7, w: 2.2, h: 0.7,
+    fontSize: 10.5, fontFace: F.body, italic: true, color: 'CBD5E1',
+    align: 'center', valign: 'top',
+  });
+  s.addText('→ Clinical Extractor', {
+    x: 10.6, y: 4.42, w: 2.2, h: 0.32,
+    fontSize: 11, fontFace: F.mono, color: C.cyan,
+    align: 'center', charSpacing: 1,
+  });
+
+  // ===========================================================
+  // BOTTOM — HITL safety + audit anchor
+  // ===========================================================
+  s.addShape('rect', {
+    x: 0.5, y: 5.7, w: 12.3, h: 1.0,
+    fill: { color: C.surface }, line: { color: C.border, width: 1 },
+  });
+  s.addText('SAFETY-FIRST · HITL', {
+    x: 0.7, y: 5.8, w: 4.5, h: 0.3,
+    fontSize: 11, fontFace: F.mono, bold: true, color: C.indigo, charSpacing: 4,
+  });
+  s.addText('Per-field confidence. Below 0.7 OR a binding field missing → REFER + Reviewer queue. The model never silently APPROVES on a smudged biomarker.', {
+    x: 0.7, y: 6.05, w: 7.2, h: 0.55,
+    fontSize: 11.5, fontFace: F.body, color: C.textBody, valign: 'top',
+  });
+  s.addText('CMS-0057-F § IV.A AUDIT', {
+    x: 8.2, y: 5.8, w: 4.5, h: 0.3,
+    fontSize: 11, fontFace: F.mono, bold: true, color: C.green, charSpacing: 4,
+  });
+  s.addText('SHA-256 of bytes + engines_used + per-field source_excerpt persisted to intake_documents. A scanned-fax verdict is as auditable as a clean-FHIR verdict.', {
+    x: 8.2, y: 6.05, w: 4.6, h: 0.55,
+    fontSize: 11.5, fontFace: F.body, color: C.textBody, valign: 'top',
+  });
+
+  addSourceFooter(s, 'app/agents/intake/ · prompts/intake/vision_extractor.txt · CMS-0057-F § IV.A · ASCO/CAP HER2 testing guideline 2018', false);
+  addPageNum(s, 10, 20);
+}
+
+// =============================================================
+// SLIDE 11 — TECH STACK
 // =============================================================
 {
   const s = pres.addSlide();
@@ -749,11 +1193,11 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'Anthropic-Cognizant partnership announcement (Nov 4, 2024) · AWS Bedrock pricing (May 2026)', false);
-  addPageNum(s, 9, 18);
+  addPageNum(s, 11, 20);
 }
 
 // =============================================================
-// SLIDE 10 — BUSINESS IMPACT (the headline)
+// SLIDE 12 — BUSINESS IMPACT (the headline)
 // =============================================================
 {
   const s = pres.addSlide();
@@ -846,11 +1290,11 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'AMA Prior Auth Survey 2024 · Authrex verified llm_invocations table (case_8f4ad9c2, May 5 2026)', false);
-  addPageNum(s, 10, 18);
+  addPageNum(s, 12, 20);
 }
 
 // =============================================================
-// SLIDE 11 — MARKET HIERARCHY (TAM/SAM/SOM)
+// SLIDE 13 — MARKET HIERARCHY (TAM/SAM/SOM)
 // =============================================================
 {
   const s = pres.addSlide();
@@ -932,11 +1376,11 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'CAQH Index 2024 · ASCO QOPI 2024 · KFF 2024 · Cognizant 10-K 2024 (channel reach)', false);
-  addPageNum(s, 11, 18);
+  addPageNum(s, 13, 20);
 }
 
 // =============================================================
-// SLIDE 12 — SCALABLE / REUSABLE
+// SLIDE 14 — SCALABLE / REUSABLE
 // =============================================================
 {
   const s = pres.addSlide();
@@ -1012,11 +1456,11 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'CAQH 2024 · Industry analyst aggregations · Authrex internal market sizing', false);
-  addPageNum(s, 12, 18);
+  addPageNum(s, 14, 20);
 }
 
 // =============================================================
-// SLIDE 13 — COGNIZANT FIT
+// SLIDE 15 — COGNIZANT FIT
 // =============================================================
 {
   const s = pres.addSlide();
@@ -1077,11 +1521,11 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'Anthropic-Cognizant partnership announcement Nov 4 2024 · Cognizant Neuro-SAN AAOSA reference', false);
-  addPageNum(s, 13, 18);
+  addPageNum(s, 15, 20);
 }
 
 // =============================================================
-// SLIDE 14 — COMPLIANCE
+// SLIDE 16 — COMPLIANCE
 // =============================================================
 {
   const s = pres.addSlide();
@@ -1178,11 +1622,11 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'CMS Federal Register CMS-0057-F (Final Rule) · Authrex compliance audit (May 5 2026)', false);
-  addPageNum(s, 14, 18);
+  addPageNum(s, 16, 20);
 }
 
 // =============================================================
-// SLIDE 15 — ROADMAP
+// SLIDE 17 — ROADMAP
 // =============================================================
 {
   const s = pres.addSlide();
@@ -1250,11 +1694,11 @@ function lightBackground(slide) {
   });
 
   addSourceFooter(s, 'Authrex business plan · Cognizant Health Sciences pipeline · CMS-0057-F mandate timeline', false);
-  addPageNum(s, 15, 18);
+  addPageNum(s, 17, 20);
 }
 
 // =============================================================
-// SLIDE 16 — TEAM
+// SLIDE 18 — TEAM
 // =============================================================
 {
   const s = pres.addSlide();
@@ -1342,11 +1786,11 @@ function lightBackground(slide) {
     color: C.indigo, align: 'center',
   });
 
-  addPageNum(s, 16, 18);
+  addPageNum(s, 18, 20);
 }
 
 // =============================================================
-// SLIDE 17 — THE ASK + CLOSING
+// SLIDE 19 — THE ASK + CLOSING
 // =============================================================
 {
   const s = pres.addSlide();
@@ -1412,11 +1856,11 @@ function lightBackground(slide) {
     align: 'center', valign: 'middle',
   });
 
-  addPageNum(s, 17, 18, true);
+  addPageNum(s, 19, 20, true);
 }
 
 // =============================================================
-// SLIDE 18 — THANK YOU + QR + SOURCES
+// SLIDE 20 — THANK YOU + QR + SOURCES
 // =============================================================
 {
   const s = pres.addSlide();
@@ -1432,20 +1876,16 @@ function lightBackground(slide) {
     fontSize: 22, fontFace: F.head, italic: true, color: 'CBD5E1',
   });
 
-  // QR placeholder (simulated as rectangle with URL)
+  // Live AWS QR — encodes http://authrex-demo-26697.s3-website-us-east-1.amazonaws.com/
+  // PNG generated by ops/demo/pptx/_build_qr_png.py (segno, ECC-H, v7, 588x588).
+  // White card behind for contrast against the navy slide; QR sits centred inside.
   s.addShape('rect', {
     x: 0.5, y: 2.85, w: 2.5, h: 2.5,
     fill: { color: C.white }, line: { color: C.cyan, width: 2 },
   });
-  s.addText('[ QR CODE ]', {
-    x: 0.5, y: 2.85, w: 2.5, h: 1.0,
-    fontSize: 16, fontFace: F.mono, bold: true, color: C.textInk,
-    align: 'center', valign: 'middle',
-  });
-  s.addText('Generate QR encoding\nhttp://authrex-demo-26697.s3-website-us-east-1.amazonaws.com\nand paste here before printing.', {
-    x: 0.5, y: 3.85, w: 2.5, h: 1.5,
-    fontSize: 11, fontFace: F.mono, color: C.textMuted,
-    align: 'center',
+  s.addImage({
+    path: path.join(__dirname, '_qr_aws.png'),
+    x: 0.65, y: 3.0, w: 2.2, h: 2.2,
   });
 
   // URL + description

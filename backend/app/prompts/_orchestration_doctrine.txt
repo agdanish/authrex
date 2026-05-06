@@ -121,11 +121,37 @@ When a Cognizant judge asks "is this just LangGraph?", the answer is:
 That answer is the difference between "interesting hackathon project"
 and "this team understands how Cognizant ships agentic systems."
 
+## Document Intake — pre-DAG real-world-input layer
+
+Production prior-auth inputs are messy: handwritten Indian Rx slips,
+phone-camera scans of pathology reports, faxed denial letters. The 7-agent
+DAG above only runs on a typed ClinicalSnapshot. The Document Intake
+layer at `app/agents/intake/` is the pre-DAG pipeline that converts those
+inputs into the typed payload — without disturbing the 7-parent narrative.
+
+  classifier (PIL stats, deterministic)
+       ↓
+  vision_extractor (Claude Sonnet 4.6 via Bedrock multimodal Converse)
+       ↓
+  IntakeResult { classification, ocr, partial ClinicalSnapshot,
+                 per-field confidence, risk_flags, requires_human_review }
+
+Bounded responsibility holds: Document Intake produces a partial
+ClinicalSnapshot — it never reasons about coverage. Confidence < 0.7 on
+a binding field routes the case straight to the Reviewer queue (HITL),
+preserving the safety-first posture. Every uploaded document is SHA-256
+hashed and persisted to `intake_documents`; every downstream `agent_runs`
+row references the document via `source_resource_id = "intake-doc-{sha8}"`,
+so a scanned-fax verdict is as auditable as a clean-FHIR verdict
+(CMS-0057-F § IV.A).
+
 ## Cross-references
 
   • Cognizant Neuro-SAN paper (AI Labs, 2024-2025)
   • PROPOSAL.md §3 — agent topology
+  • PROPOSAL.md §7B — Document Intake pre-DAG layer
   • app/api/foundry.py — `/foundry/manifest` exposes this doctrine
   • app/api/architecture.py — Layer 2 lists the 7 parents + 22 sub-agents
+  • app/agents/intake/ — Document Intake implementation
   • CLAUDE.md — Agent conventions (input model + output model + system
     prompt + LangGraph node + contract test, every agent)

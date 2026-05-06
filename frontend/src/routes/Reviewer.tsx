@@ -118,7 +118,7 @@ export default function Reviewer() {
   }
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="px-6 py-6">
       <header className="mb-5">
         <h1 className="text-2xl font-semibold text-ink-primary leading-tight flex items-center gap-2">
           <UserCheck size={22} className="text-accent-brand" />

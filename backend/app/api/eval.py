@@ -111,18 +111,23 @@ async def cohort_eval(
     gold = _load_gold_labels()
     gold_by_id = {label["case_id"]: label for label in gold["labels"]}
 
-    # Pull live cohort: cases + their stored Authrex verdicts (org-scoped)
-    rows = await db.fetch(
-        """SELECT c.id, c.requested_treatment_name, c.payer_id, d.verdict
-           FROM cases c
-           LEFT JOIN LATERAL (
-             SELECT verdict FROM decisions
-             WHERE case_id = c.id ORDER BY created_at DESC LIMIT 1
-           ) d ON TRUE
-           WHERE c.organization_id = $1
-           ORDER BY c.created_at""",
-        user["organization_id"],
-    )
+    # Pull live cohort: cases + their stored Authrex verdicts (org-scoped).
+    # DB-less deploys (no RDS) get an empty cohort — n=0 zeroes propagate
+    # cleanly through the metric calculations below.
+    try:
+        rows = await db.fetch(
+            """SELECT c.id, c.requested_treatment_name, c.payer_id, d.verdict
+               FROM cases c
+               LEFT JOIN LATERAL (
+                 SELECT verdict FROM decisions
+                 WHERE case_id = c.id ORDER BY created_at DESC LIMIT 1
+               ) d ON TRUE
+               WHERE c.organization_id = $1
+               ORDER BY c.created_at""",
+            user["organization_id"],
+        )
+    except Exception:
+        rows = []
 
     # Filter to cases we have gold labels for AND that have a verdict
     truth: list[str] = []

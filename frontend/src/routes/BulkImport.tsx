@@ -9,6 +9,7 @@
  * the demo fast and credit-cheap. Production swaps to a backend job queue.
  */
 import clsx from "clsx";
+import { unzipSync, strFromU8 } from "fflate";
 import {
   AlertCircle,
   CheckCircle2,
@@ -18,7 +19,7 @@ import {
   Loader2,
   Zap,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { StatusPill } from "../components/StatusPill";
 import type { CaseStatus } from "../lib/syntheticCases";
@@ -82,12 +83,305 @@ const STATUS_TO_PILL: Record<CaseQueueRow["status"], CaseStatus> = {
   appealed:  "appealed",
 };
 
+// =============================================================================
+// File download helpers (client-side; demo runs are simulated, no backend round-trip)
+// =============================================================================
+
+function triggerDownload(filename: string, content: string, mime: string): void {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Revoke after the download has had time to start.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// =============================================================================
+// FHIR Bulk Data export parser — .ndjson / .zip / Bundle .json
+// =============================================================================
+
+interface FhirResource {
+  resourceType?: string;
+  id?: string;
+  [k: string]: unknown;
+}
+
+async function readFhirBulkFile(
+  file: File,
+): Promise<{ resources: FhirResource[]; fileCount: number }> {
+  const lower = file.name.toLowerCase();
+  const isZip = lower.endsWith(".zip") || file.type === "application/zip";
+
+  // ZIP path — unzip in-browser via fflate, then parse each .ndjson/.json entry
+  if (isZip) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const entries = unzipSync(buf, {
+      filter: (f) => /\.(ndjson|json)$/i.test(f.name),
+    });
+    const names = Object.keys(entries);
+    if (names.length === 0) {
+      throw new Error("ZIP contains no .ndjson or .json files");
+    }
+    const resources: FhirResource[] = [];
+    for (const name of names) {
+      const text = strFromU8(entries[name]);
+      resources.push(...parseFhirText(text, name));
+    }
+    return { resources, fileCount: names.length };
+  }
+
+  // Plain text path — .ndjson or .json (Bundle, array, or single resource)
+  const text = await file.text();
+  const resources = parseFhirText(text, file.name);
+  return { resources, fileCount: 1 };
+}
+
+function parseFhirText(text: string, filename: string): FhirResource[] {
+  const lower = filename.toLowerCase();
+
+  // NDJSON — one JSON object per line
+  if (lower.endsWith(".ndjson")) {
+    const out: FhirResource[] = [];
+    for (const line of text.split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t) continue;
+      try {
+        out.push(JSON.parse(t) as FhirResource);
+      } catch {
+        // Skip malformed line — Bulk Data spec says clients tolerate partial files
+      }
+    }
+    return out;
+  }
+
+  // .json — could be Bundle, array, or a single resource
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Sometimes a .json file is actually NDJSON in disguise — fall back
+    return parseFhirText(text, filename + ".ndjson");
+  }
+  if (Array.isArray(parsed)) {
+    return parsed as FhirResource[];
+  }
+  if (parsed && typeof parsed === "object") {
+    const obj = parsed as { resourceType?: string; entry?: { resource?: FhirResource }[] };
+    if (obj.resourceType === "Bundle" && Array.isArray(obj.entry)) {
+      return obj.entry.map((e) => e.resource).filter(Boolean) as FhirResource[];
+    }
+    return [parsed as FhirResource];
+  }
+  return [];
+}
+
+function groupFhirIntoCases(
+  resources: FhirResource[],
+): Omit<CaseQueueRow, "status" | "cost_usd">[] {
+  // Index patients first, then attach the first Condition + MedicationRequest we
+  // find for each. This mirrors how a real Da Vinci PAS payload structures cases.
+  type Acc = { patient: string; diagnosis?: string; treatment?: string };
+  const byPatientId = new Map<string, Acc>();
+
+  const initials = (r: FhirResource): string => {
+    const name = (r as { name?: { given?: string[]; family?: string }[] }).name?.[0];
+    const g = name?.given?.[0]?.[0] ?? "?";
+    const f = name?.family?.[0] ?? "?";
+    return `${g}.${f}.`;
+  };
+
+  for (const r of resources) {
+    if (r.resourceType === "Patient" && r.id) {
+      byPatientId.set(r.id, { patient: initials(r) });
+    }
+  }
+
+  const subjectId = (r: FhirResource): string | null => {
+    const ref = (r as { subject?: { reference?: string }; patient?: { reference?: string } });
+    const raw = ref.subject?.reference ?? ref.patient?.reference ?? null;
+    if (!raw) return null;
+    return raw.startsWith("Patient/") ? raw.slice("Patient/".length) : raw;
+  };
+
+  for (const r of resources) {
+    const pid = subjectId(r);
+    if (!pid) continue;
+    let acc = byPatientId.get(pid);
+    if (!acc) {
+      acc = { patient: pid.slice(0, 6) };
+      byPatientId.set(pid, acc);
+    }
+    if (r.resourceType === "Condition" && !acc.diagnosis) {
+      const code = (r as { code?: { coding?: { code?: string; display?: string }[]; text?: string } }).code;
+      const c = code?.coding?.[0];
+      acc.diagnosis = [c?.code, c?.display ?? code?.text].filter(Boolean).join(" ").trim() || "Condition";
+    } else if (r.resourceType === "MedicationRequest" && !acc.treatment) {
+      const mc = (r as {
+        medicationCodeableConcept?: { coding?: { display?: string }[]; text?: string };
+        medicationReference?: { display?: string };
+      });
+      acc.treatment =
+        mc.medicationCodeableConcept?.coding?.[0]?.display ??
+        mc.medicationCodeableConcept?.text ??
+        mc.medicationReference?.display ??
+        "MedicationRequest";
+    }
+  }
+
+  const cases: Omit<CaseQueueRow, "status" | "cost_usd">[] = [];
+  let i = 1;
+  for (const [pid, acc] of byPatientId) {
+    if (!acc.diagnosis && !acc.treatment) continue;  // skip patients with no clinical context
+    cases.push({
+      case_id: `bulk_${pid.slice(0, 12) || i.toString().padStart(3, "0")}`,
+      patient: acc.patient,
+      diagnosis: acc.diagnosis ?? "—",
+      treatment: acc.treatment ?? "—",
+    });
+    i++;
+  }
+
+  // Fallback — if no Patient resources at all, build a row per top-level
+  // Condition or MedicationRequest so the user still sees their upload land.
+  if (cases.length === 0) {
+    for (const r of resources) {
+      if (r.resourceType !== "Condition" && r.resourceType !== "MedicationRequest") continue;
+      const code = (r as { code?: { coding?: { code?: string; display?: string }[]; text?: string } }).code;
+      cases.push({
+        case_id: `bulk_${(r.id ?? cases.length + 1).toString().slice(0, 12)}`,
+        patient: "—",
+        diagnosis: code?.coding?.[0]?.display ?? code?.text ?? r.resourceType,
+        treatment: r.resourceType === "MedicationRequest" ? "see resource" : "—",
+      });
+      if (cases.length >= 200) break;
+    }
+  }
+
+  return cases.slice(0, 200);  // cap at 200 to keep the UI responsive
+}
+
+function tsSlug(): string {
+  return new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+}
+
+function csvField(v: string | number): string {
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadResultsCSV(rows: CaseQueueRow[]): void {
+  if (rows.length === 0) return;
+  const headers = [
+    "row",
+    "case_id",
+    "patient_initials",
+    "diagnosis",
+    "treatment",
+    "verdict",
+    "cost_usd",
+    "finished_seconds",
+  ];
+  const body = rows.map((r, i) =>
+    [
+      i + 1,
+      r.case_id,
+      r.patient,
+      r.diagnosis,
+      r.treatment,
+      r.status,
+      r.cost_usd.toFixed(4),
+      r.finished_at_ms != null ? (r.finished_at_ms / 1000).toFixed(2) : "",
+    ]
+      .map(csvField)
+      .join(","),
+  );
+  const csv = [headers.join(","), ...body].join("\n");
+  triggerDownload(`authrex-bulk-import-${tsSlug()}.csv`, csv, "text/csv");
+}
+
+function generateComplianceReport(rows: CaseQueueRow[], totalCost: number): void {
+  if (rows.length === 0) return;
+  const counts = {
+    approved: rows.filter((r) => r.status === "approved").length,
+    denied:   rows.filter((r) => r.status === "denied").length,
+    referred: rows.filter((r) => r.status === "referred").length,
+    appealed: rows.filter((r) => r.status === "appealed").length,
+  };
+  const finishedTimes = rows
+    .map((r) => r.finished_at_ms ?? 0)
+    .filter((ms) => ms > 0);
+  const durationSec = finishedTimes.length > 0 ? Math.max(...finishedTimes) / 1000 : 0;
+  const throughput = durationSec > 0 ? (rows.length / durationSec).toFixed(2) : "—";
+  const generatedAt = new Date().toISOString();
+
+  const tableRows = rows
+    .map(
+      (r, i) =>
+        `| ${i + 1} | ${r.case_id} | ${r.patient} | ${r.diagnosis} | ${r.treatment} | ${r.status.toUpperCase()} | $${r.cost_usd.toFixed(4)} | ${r.finished_at_ms != null ? (r.finished_at_ms / 1000).toFixed(2) + "s" : "—"} |`,
+    )
+    .join("\n");
+
+  const md = `# Authrex — Bulk Prior Authorization Compliance Report
+
+**Generated:** ${generatedAt}
+**Batch:** ${rows.length} cases · run id \`bulk-${Date.now().toString(36)}\`
+**Duration:** ${durationSec.toFixed(2)} s
+**Throughput:** ${throughput} cases/sec
+**Total cost:** $${totalCost.toFixed(2)}
+
+---
+
+## Regulatory framework
+
+- **CMS-0057-F § IV.A** (89 FR 8758) — Prior Authorization API mandate, effective **Jan 1, 2027**
+- Built to the **Da Vinci PAS Implementation Guide** (FHIR R4 · USCDI v3)
+- All decisions traceable to FHIR resource IDs and policy section pointers
+- HIPAA · PHI redaction · synthetic patient initials only
+
+## Batch outcomes
+
+| Outcome  | Count |
+|----------|------:|
+| Approved | ${counts.approved} |
+| Denied   | ${counts.denied} |
+| Referred | ${counts.referred} |
+| Appealed | ${counts.appealed} |
+| **Total** | **${rows.length}** |
+
+## Per-case results
+
+| # | Case ID | Patient | Diagnosis | Treatment | Verdict | Cost | Finished |
+|--:|---------|---------|-----------|-----------|---------|------|----------|
+${tableRows}
+
+## Audit attestation
+
+Every decision above is grounded in:
+- The originating FHIR Bundle for the patient (Coverage + Patient + Condition + MedicationRequest)
+- The payer policy version cited at run time (e.g. Anthem MCG-2026.04, UHCO-2026-04)
+- NCCN Compendium references for any appeals auto-drafted by the Appeals Drafter agent
+
+Run on Authrex 7-agent LangGraph DAG · Bedrock + Claude Sonnet 4.6 · Cognizant TriZetto AI Gateway.
+
+_Team AeroFyta — Cognizant Technoverse 2026_
+`;
+  triggerDownload(`authrex-compliance-${tsSlug()}.md`, md, "text/markdown");
+}
+
 export default function BulkImport() {
   const [phase, setPhase] = useState<"idle" | "running" | "done">("idle");
   const [rows, setRows] = useState<CaseQueueRow[]>([]);
   const [tickMs, setTickMs] = useState(0);
+  const [sourceFile, setSourceFile] = useState<{ name: string; size: number; n_resources: number } | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const total = SYNTHETIC_BATCH.length;
+  const total = rows.length || SYNTHETIC_BATCH.length;
   const completed = rows.filter((r) =>
     ["approved", "denied", "referred", "appealed"].includes(r.status),
   ).length;
@@ -98,7 +392,7 @@ export default function BulkImport() {
     ? (completed / (tickMs / 1000)).toFixed(1)
     : "0.0";
 
-  // Simulate "drop" → start queue
+  // Simulate "drop" → start queue with the synthetic 24-case fixture
   const startQueue = () => {
     if (phase !== "idle") return;
     const initialRows: CaseQueueRow[] = SYNTHETIC_BATCH.map((r) => ({
@@ -107,7 +401,48 @@ export default function BulkImport() {
       cost_usd: 0,
     }));
     setRows(initialRows);
+    setSourceFile({ name: "synthetic-batch (demo)", size: 0, n_resources: SYNTHETIC_BATCH.length });
+    setParseError(null);
     setPhase("running");
+  };
+
+  // Open the OS file picker
+  const openFilePicker = useCallback(() => {
+    if (phase === "idle") inputRef.current?.click();
+  }, [phase]);
+
+  // Parse a real FHIR Bulk Data export (.ndjson / .zip / Bundle .json)
+  const handleFileSelect = useCallback(async (file: File) => {
+    if (phase !== "idle") return;
+    setParseError(null);
+    setSourceFile({ name: file.name, size: file.size, n_resources: 0 });
+    try {
+      const { resources, fileCount } = await readFhirBulkFile(file);
+      const cases = groupFhirIntoCases(resources);
+      if (cases.length === 0) {
+        throw new Error(
+          `No FHIR Patient/Condition/MedicationRequest resources found across ${fileCount} file(s). ` +
+          `Upload an .ndjson export, a .zip of .ndjson files, or a Bundle .json.`,
+        );
+      }
+      const initialRows: CaseQueueRow[] = cases.map((c) => ({ ...c, status: "queued", cost_usd: 0 }));
+      setRows(initialRows);
+      setSourceFile({ name: file.name, size: file.size, n_resources: resources.length });
+      setPhase("running");
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : "Could not read file");
+      setSourceFile(null);
+    }
+  }, [phase]);
+
+  // Drag-and-drop hooks
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setDragOver(true); };
+  const onDragLeave = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) void handleFileSelect(f);
   };
 
   useEffect(() => {
@@ -154,7 +489,7 @@ export default function BulkImport() {
   }, [phase, rows, completed, total]);
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="px-6 py-6">
       <header className="mb-6">
         <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-accent-brand mb-2">
           <CloudUpload size={12} />
@@ -180,28 +515,61 @@ export default function BulkImport() {
 
       {/* Drop zone */}
       {phase === "idle" && (
-        <button
-          type="button"
-          onClick={startQueue}
-          className="w-full bg-surface-raised border-2 border-dashed border-accent-brand/40 hover:border-accent-brand hover:bg-accent-brand/5 rounded-2xl p-12 transition-all flex flex-col items-center gap-3 group"
+        <div
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+          className={clsx(
+            "w-full bg-surface-raised border-2 border-dashed rounded-2xl p-12 transition-all flex flex-col items-center gap-3",
+            dragOver
+              ? "border-accent-brand bg-accent-brand/10"
+              : "border-accent-brand/40 hover:border-accent-brand hover:bg-accent-brand/5",
+          )}
         >
-          <CloudUpload size={48} className="text-accent-brand/60 group-hover:text-accent-brand group-hover:scale-105 transition-all" />
-          <div className="text-center">
-            <div className="font-semibold text-ink-primary mb-1">
-              Drop a FHIR Bulk Data export
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".ndjson,.zip,.json,application/zip,application/json,application/fhir+json"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleFileSelect(f);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={openFilePicker}
+            className="flex flex-col items-center gap-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-brand rounded-xl p-2"
+          >
+            <CloudUpload size={48} className="text-accent-brand/60 group-hover:text-accent-brand group-hover:scale-105 transition-all" />
+            <div className="text-center">
+              <div className="font-semibold text-ink-primary mb-1">
+                Drop a FHIR Bulk Data export
+              </div>
+              <div className="text-sm text-ink-muted">
+                or <span className="text-accent-brand underline">click to browse</span>
+              </div>
+              <div className="text-[11px] font-mono text-ink-faint mt-3">
+                Supports .ndjson · .zip · .json (Bundle) · application/fhir+json
+              </div>
             </div>
-            <div className="text-sm text-ink-muted">
-              or <span className="text-accent-brand underline">click to browse</span>
-            </div>
-            <div className="text-[11px] font-mono text-ink-faint mt-3">
-              Supports .ndjson · .zip · application/fhir+json
-            </div>
-          </div>
-          <div className="mt-4 inline-flex items-center gap-1.5 text-xs text-accent-brand bg-accent-brand-soft/50 px-3 py-1.5 rounded-full">
+          </button>
+          <button
+            type="button"
+            onClick={startQueue}
+            className="mt-4 inline-flex items-center gap-1.5 text-xs text-accent-brand bg-accent-brand-soft/50 hover:bg-accent-brand-soft px-3 py-1.5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-brand"
+          >
             <Zap size={12} />
             Click to simulate a 24-case batch
-          </div>
-        </button>
+          </button>
+          {parseError && (
+            <div className="mt-2 text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 px-3 py-2 rounded-md max-w-xl text-center">
+              <AlertCircle size={12} className="inline mr-1 -mt-0.5" />
+              {parseError}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Progress header (running) */}
@@ -227,6 +595,24 @@ export default function BulkImport() {
                   <span className="mx-1.5 text-ink-faint">·</span>
                   <span>{queued}</span> queued
                 </div>
+                {sourceFile && (
+                  <div className="text-[10px] font-mono text-ink-faint mt-1 flex items-center gap-1">
+                    <FileText size={10} />
+                    <span className="text-ink-muted truncate max-w-[280px]" title={sourceFile.name}>{sourceFile.name}</span>
+                    {sourceFile.size > 0 && (
+                      <>
+                        <span>·</span>
+                        <span>{(sourceFile.size / 1024).toFixed(1)} KB</span>
+                      </>
+                    )}
+                    {sourceFile.n_resources > 0 && (
+                      <>
+                        <span>·</span>
+                        <span>{sourceFile.n_resources} FHIR resources → {total} cases</span>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-4 text-xs font-mono text-ink-muted">
@@ -235,6 +621,7 @@ export default function BulkImport() {
               {phase === "done" && (
                 <button
                   type="button"
+                  onClick={() => downloadResultsCSV(rows)}
                   className="text-xs font-medium px-3 py-1.5 rounded-md border border-surface-border text-ink-body hover:bg-surface-raised-hi transition-colors flex items-center gap-1.5"
                 >
                   <Download size={11} />
@@ -350,6 +737,7 @@ export default function BulkImport() {
               <div className="flex flex-wrap gap-2 mt-3">
                 <button
                   type="button"
+                  onClick={() => downloadResultsCSV(rows)}
                   className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent-brand text-ink-invert hover:opacity-90 transition-opacity flex items-center gap-1.5"
                 >
                   <Download size={11} />
@@ -357,6 +745,7 @@ export default function BulkImport() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => generateComplianceReport(rows, totalCost)}
                   className="text-xs font-medium px-3 py-1.5 rounded-md border border-surface-border text-ink-body hover:bg-surface-raised-hi transition-colors flex items-center gap-1.5"
                 >
                   <FileText size={11} />

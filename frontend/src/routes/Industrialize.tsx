@@ -45,7 +45,7 @@ export default function Industrialize() {
   }, []);
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto space-y-6">
+    <div className="px-6 py-6 space-y-6">
       <header>
         <div className="text-[10px] font-mono uppercase tracking-widest text-accent-brand mb-1">
           AUTHREX · INDUSTRIALIZATION

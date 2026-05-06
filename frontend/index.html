@@ -6,13 +6,16 @@
     <link rel="preconnect" href="https://rsms.me/" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
     <title>Authrex — Prior Authorisation Copilot for Oncology</title>
-    <!-- No-flash theme bootstrap: applied before first paint -->
+    <!-- No-flash theme bootstrap: dark by default, light if persisted.
+         Matches the deployed Cognizant-healthcare showcase. -->
     <script>
       (function () {
         try {
           var t = localStorage.getItem("authrex-theme");
-          if (t === "dark") document.documentElement.classList.add("dark");
-        } catch (e) {}
+          if (t !== "light") document.documentElement.classList.add("dark");
+        } catch (e) {
+          document.documentElement.classList.add("dark");
+        }
       })();
     </script>
   </head>

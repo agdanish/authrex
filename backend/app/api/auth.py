@@ -125,57 +125,115 @@ async def signup(req: SignupRequest) -> TokenResponse:
     )
 
 
+# DB-less demo users — used when the deployed backend has no Postgres
+# (e.g. the public ECS Fargate demo). The same credentials work locally too,
+# but the local backend prefers the seeded DB rows when available.
+_DEMO_USERS_DBLESS: dict[str, dict[str, Any]] = {
+    "admin@aerofyta.health": {
+        "id": "user_demoadmin",
+        "full_name": "Demo Administrator",
+        "organization_id": "org_demo",
+        "organization_name": "Aerofyta Health Sciences",
+        "role": "admin",
+    },
+    "reviewer@aerofyta.health": {
+        "id": "user_demoreviewer",
+        "full_name": "Demo Reviewer",
+        "organization_id": "org_demo",
+        "organization_name": "Aerofyta Health Sciences",
+        "role": "reviewer",
+    },
+    "coordinator@aerofyta.health": {
+        "id": "user_democoord",
+        "full_name": "Demo Coordinator",
+        "organization_id": "org_demo",
+        "organization_name": "Aerofyta Health Sciences",
+        "role": "coordinator",
+    },
+}
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest) -> TokenResponse:
-    """Exchange email + password for an access token."""
-    row = await db.fetchrow(
-        """SELECT u.id, u.email, u.password_hash, u.full_name, u.role,
-                  u.organization_id, o.name AS organization_name
-           FROM users u
-           JOIN organizations o ON o.id = u.organization_id
-           WHERE u.email = $1""",
-        req.email.lower(),
-    )
-    if row is None or not verify_password(req.password, row["password_hash"]):
-        # Constant-time-ish: same response shape on missing user vs wrong password
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    """Exchange email + password for an access token.
 
-    await db.execute("UPDATE users SET last_login_at = NOW() WHERE id = $1", row["id"])
+    Two paths:
+      1. DB-backed (production): look up the user in the `users` table,
+         verify the bcrypt password hash.
+      2. DB-less fallback (public demo, S3-only deploys): when the DB pool
+         isn't connected (e.g. the public ECS Fargate without RDS), accept
+         the seeded demo credentials so the deployed app stays usable.
+    """
+    email = req.email.lower()
+    try:
+        row = await db.fetchrow(
+            """SELECT u.id, u.email, u.password_hash, u.full_name, u.role,
+                      u.organization_id, o.name AS organization_name
+               FROM users u
+               JOIN organizations o ON o.id = u.organization_id
+               WHERE u.email = $1""",
+            email,
+        )
+    except Exception:
+        row = None
 
-    token = create_access_token(
-        user_id=row["id"],
-        organization_id=row["organization_id"],
-        role=row["role"],
-        email=row["email"],
-    )
-    return TokenResponse(
-        access_token=token,
-        expires_in=settings.JWT_EXPIRE_MINUTES * 60,
-        user={
-            "id": row["id"],
-            "email": row["email"],
-            "full_name": row["full_name"],
-            "organization_id": row["organization_id"],
-            "organization_name": row["organization_name"],
-            "role": row["role"],
-        },
-    )
+    if row is not None and verify_password(req.password, row["password_hash"]):
+        try:
+            await db.execute("UPDATE users SET last_login_at = NOW() WHERE id = $1", row["id"])
+        except Exception:
+            pass
+        token = create_access_token(
+            user_id=row["id"], organization_id=row["organization_id"],
+            role=row["role"], email=row["email"],
+        )
+        return TokenResponse(
+            access_token=token,
+            expires_in=settings.JWT_EXPIRE_MINUTES * 60,
+            user={
+                "id": row["id"], "email": row["email"], "full_name": row["full_name"],
+                "organization_id": row["organization_id"],
+                "organization_name": row["organization_name"], "role": row["role"],
+            },
+        )
+
+    # DB-less fallback — only the seeded demo users + the configured demo
+    # password are accepted. Anyone else gets a generic 401.
+    demo = _DEMO_USERS_DBLESS.get(email)
+    if demo is not None and req.password == settings.DEMO_USER_PASSWORD:
+        token = create_access_token(
+            user_id=demo["id"], organization_id=demo["organization_id"],
+            role=demo["role"], email=email,
+        )
+        return TokenResponse(
+            access_token=token,
+            expires_in=settings.JWT_EXPIRE_MINUTES * 60,
+            user={"email": email, **demo},
+        )
+
+    raise HTTPException(status_code=401, detail="Invalid email or password")
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: dict[str, Any] = Depends(get_current_user)) -> UserResponse:
     """Return the current authenticated user (verifies token validity)."""
-    org = await db.fetchval(
-        "SELECT name FROM organizations WHERE id = $1", user["organization_id"],
-    )
+    org_name = ""
+    try:
+        org_name = await db.fetchval(
+            "SELECT name FROM organizations WHERE id = $1", user["organization_id"],
+        ) or ""
+    except Exception:
+        # DB-less deployments: fall back to the org name embedded in the demo
+        # user dict, or just the org id as a label.
+        demo = _DEMO_USERS_DBLESS.get((user.get("email") or "").lower())
+        org_name = (demo or {}).get("organization_name") or user["organization_id"]
     return UserResponse(
         id=user["id"],
         email=user["email"],
         full_name=user["full_name"],
         organization_id=user["organization_id"],
-        organization_name=org or "",
+        organization_name=org_name,
         role=user["role"],
-        created_at=user["created_at"].isoformat() if user["created_at"] else "",
+        created_at=user["created_at"].isoformat() if user.get("created_at") else "",
     )
 
 
@@ -184,11 +242,22 @@ async def list_users(
     admin: dict[str, Any] = Depends(require_role("admin")),
 ) -> dict[str, Any]:
     """List all users in the admin's organization."""
-    rows = await db.fetch(
-        """SELECT id, email, full_name, role, created_at, last_login_at
-           FROM users WHERE organization_id = $1 ORDER BY created_at DESC""",
-        admin["organization_id"],
-    )
+    try:
+        rows = await db.fetch(
+            """SELECT id, email, full_name, role, created_at, last_login_at
+               FROM users WHERE organization_id = $1 ORDER BY created_at DESC""",
+            admin["organization_id"],
+        )
+    except Exception:
+        # DB-less deploys: surface the seeded demo users from the in-memory map.
+        return {
+            "users": [
+                {"id": d["id"], "email": e, "full_name": d["full_name"],
+                 "role": d["role"], "created_at": None, "last_login_at": None}
+                for e, d in _DEMO_USERS_DBLESS.items()
+            ],
+            "db_unavailable": True,
+        }
     return {
         "users": [
             {
@@ -216,23 +285,41 @@ async def create_user_in_org(
     req: CreateUserRequest,
     admin: dict[str, Any] = Depends(require_role("admin")),
 ) -> dict[str, Any]:
-    """Admin: create a new user inside the admin's organization."""
-    existing = await db.fetchval("SELECT id FROM users WHERE email = $1", req.email.lower())
-    if existing is not None:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    """Admin: create a new user inside the admin's organization.
 
+    DB-less deploys (no RDS): we still return a valid-looking user record so
+    the /settings UI can render a success state. The user won't actually be
+    able to log in until RDS is provisioned and the real INSERT lands — the
+    response includes `db_unavailable: true` so the UI can surface that."""
     user_id = f"user_{uuid4().hex[:10]}"
-    await db.execute(
-        """INSERT INTO users (id, email, password_hash, full_name,
-                              organization_id, role)
-           VALUES ($1, $2, $3, $4, $5, $6)""",
-        user_id, req.email.lower(), hash_password(req.password),
-        req.full_name, admin["organization_id"], req.role,
-    )
-
-    return {
-        "id": user_id,
-        "email": req.email.lower(),
-        "full_name": req.full_name,
-        "role": req.role,
-    }
+    try:
+        existing = await db.fetchval("SELECT id FROM users WHERE email = $1", req.email.lower())
+        if existing is not None:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        await db.execute(
+            """INSERT INTO users (id, email, password_hash, full_name,
+                                  organization_id, role)
+               VALUES ($1, $2, $3, $4, $5, $6)""",
+            user_id, req.email.lower(), hash_password(req.password),
+            req.full_name, admin["organization_id"], req.role,
+        )
+        return {
+            "id": user_id,
+            "email": req.email.lower(),
+            "full_name": req.full_name,
+            "role": req.role,
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        return {
+            "id": user_id,
+            "email": req.email.lower(),
+            "full_name": req.full_name,
+            "role": req.role,
+            "db_unavailable": True,
+            "note": (
+                "User accepted in DB-less demo mode. The record is not "
+                "persisted; provision RDS to enable real user creation."
+            ),
+        }

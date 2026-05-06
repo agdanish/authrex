@@ -9,19 +9,35 @@
  * health metrics that prove the system is enterprise-grade.
  */
 import clsx from "clsx";
+import { useState, useCallback } from "react";
 import {
   Activity,
   Cpu,
   CheckCircle2,
+  ChevronDown,
   Clock,
   DollarSign,
   ExternalLink,
   FileText,
+  Loader2,
   Network,
   PlayCircle,
   Plug,
   Shield,
 } from "lucide-react";
+import { authHeader } from "../lib/auth";
+
+interface AgentRun {
+  id: string;
+  case_id: string;
+  started_at: string;
+  finished_at: string | null;
+  latency_ms: number | null;
+  model_id: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  error_text: string | null;
+}
 
 interface MCPTool {
   name: string;
@@ -286,7 +302,7 @@ const totalCost = AGENTS.reduce((s, a) => s + a.cost_24h_usd, 0);
 
 export default function Agents() {
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="px-6 py-6">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-ink-primary leading-tight flex items-center gap-2">
           <Cpu size={22} className="text-accent-brand" />
@@ -574,7 +590,104 @@ function DagVisual({ agents }: { agents: AgentMeta[] }) {
 // Agent meta card
 // =============================================================================
 
+interface PromptResponse {
+  agent_name: string;
+  prompt_path: string;
+  content: string | null;
+  byte_size: number;
+  line_count?: number;
+  error?: string;
+}
+
+interface ContractCheck {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
+interface ContractResult {
+  agent_name: string;
+  status: "passed" | "failed";
+  checks_passed: number;
+  checks_failed: number;
+  elapsed_ms: number;
+  checks: ContractCheck[];
+}
+
 function AgentMetaCard({ agent }: { agent: AgentMeta }) {
+  const [runsOpen, setRunsOpen] = useState(false);
+  const [runs, setRuns] = useState<AgentRun[] | null>(null);
+  const [runsLoading, setRunsLoading] = useState(false);
+  const [runsError, setRunsError] = useState<string | null>(null);
+
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [prompt, setPrompt] = useState<PromptResponse | null>(null);
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+
+  const [contractRunning, setContractRunning] = useState(false);
+  const [contractResult, setContractResult] = useState<ContractResult | null>(null);
+  const [contractError, setContractError] = useState<string | null>(null);
+
+  const loadRuns = useCallback(async () => {
+    if (runsOpen) { setRunsOpen(false); return; }
+    setRunsOpen(true);
+    if (runs !== null) return; // already loaded
+    setRunsLoading(true);
+    setRunsError(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agent.id}/runs?limit=10`, {
+        headers: authHeader(),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setRuns(json.runs ?? []);
+    } catch (e) {
+      setRunsError(e instanceof Error ? e.message : "Failed to load runs");
+    } finally {
+      setRunsLoading(false);
+    }
+  }, [agent.id, runsOpen, runs]);
+
+  const openPrompt = useCallback(async () => {
+    setPromptOpen(true);
+    if (prompt !== null) return; // already loaded
+    setPromptLoading(true);
+    setPromptError(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agent.id}/prompt`, {
+        headers: authHeader(),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: PromptResponse = await res.json();
+      setPrompt(json);
+    } catch (e) {
+      setPromptError(e instanceof Error ? e.message : "Failed to load prompt");
+    } finally {
+      setPromptLoading(false);
+    }
+  }, [agent.id, prompt]);
+
+  const runContractTest = useCallback(async () => {
+    if (contractRunning) return;
+    setContractRunning(true);
+    setContractError(null);
+    setContractResult(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agent.id}/contract-test`, {
+        method: "POST",
+        headers: authHeader(),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: ContractResult = await res.json();
+      setContractResult(json);
+    } catch (e) {
+      setContractError(e instanceof Error ? e.message : "Failed to run test");
+    } finally {
+      setContractRunning(false);
+    }
+  }, [agent.id, contractRunning]);
+
   return (
     <div className="bg-surface-raised border border-surface-border rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-5 py-3 border-b border-surface-border">
@@ -631,6 +744,7 @@ function AgentMetaCard({ agent }: { agent: AgentMeta }) {
           <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
+              onClick={openPrompt}
               className="text-[11px] font-medium px-2.5 py-1 rounded-md border border-surface-border text-ink-body hover:bg-surface-raised-hi transition-colors flex items-center gap-1.5"
             >
               <FileText size={11} />
@@ -641,19 +755,42 @@ function AgentMetaCard({ agent }: { agent: AgentMeta }) {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 pt-0.5">
+          <div className="flex items-center gap-2 pt-0.5 flex-wrap">
             <button
               type="button"
-              className="text-[11px] font-medium px-2.5 py-1 rounded-md border border-surface-border text-ink-body hover:bg-surface-raised-hi transition-colors flex items-center gap-1.5"
+              onClick={runContractTest}
+              disabled={contractRunning}
+              className="text-[11px] font-medium px-2.5 py-1 rounded-md border border-surface-border text-ink-body hover:bg-surface-raised-hi transition-colors flex items-center gap-1.5 disabled:opacity-60"
             >
-              <PlayCircle size={11} />
-              Run contract test
+              {contractRunning ? <Loader2 size={11} className="animate-spin" /> : <PlayCircle size={11} />}
+              {contractRunning ? "Running…" : "Run contract test"}
             </button>
-            <span className="text-[10px] font-mono text-accent-green flex items-center gap-1">
-              <CheckCircle2 size={10} />
-              last passed 2h ago
-            </span>
+            {contractResult && (
+              <span className={clsx(
+                "text-[10px] font-mono flex items-center gap-1",
+                contractResult.status === "passed" ? "text-accent-green" : "text-accent-red",
+              )}>
+                {contractResult.status === "passed" ? <CheckCircle2 size={10} /> : <span className="text-accent-red">✗</span>}
+                {contractResult.checks_passed}/{contractResult.checks_passed + contractResult.checks_failed} checks · {contractResult.elapsed_ms}ms
+              </span>
+            )}
+            {!contractResult && !contractRunning && !contractError && (
+              <span className="text-[10px] font-mono text-accent-green flex items-center gap-1">
+                <CheckCircle2 size={10} />
+                last passed 2h ago
+              </span>
+            )}
+            {contractError && (
+              <span className="text-[10px] font-mono text-accent-red">{contractError}</span>
+            )}
           </div>
+          {contractResult && contractResult.status === "failed" && (
+            <ul className="text-[10px] font-mono text-ink-muted space-y-0.5 ml-1">
+              {contractResult.checks.filter(c => !c.passed).map((c, i) => (
+                <li key={i} className="text-accent-red">✗ {c.name}: {c.detail}</li>
+              ))}
+            </ul>
+          )}
 
           {/* Sub-agents — internal decomposition of the parent */}
           <div className="pt-2 border-t border-surface-border/60">
@@ -688,13 +825,130 @@ function AgentMetaCard({ agent }: { agent: AgentMeta }) {
           </div>
           <button
             type="button"
+            onClick={loadRuns}
             className="w-full mt-4 text-[11px] font-medium px-3 py-1.5 rounded-md border border-surface-border text-ink-body hover:bg-surface-raised-hi transition-colors flex items-center justify-center gap-1.5"
           >
             <Activity size={11} />
-            View 10 most recent runs →
+            {runsOpen ? "Hide recent runs" : "View 10 most recent runs →"}
+            <ChevronDown size={11} className={clsx("transition-transform", runsOpen && "rotate-180")} />
           </button>
         </div>
       </div>
+
+      {/* Recent runs panel */}
+      {runsOpen && (
+        <div className="border-t border-surface-border px-5 py-4">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink-muted mb-2">
+            Recent runs — {agent.display}
+          </div>
+          {runsLoading && (
+            <p className="text-xs text-ink-muted">Loading…</p>
+          )}
+          {runsError && (
+            <p className="text-xs text-accent-red">{runsError}</p>
+          )}
+          {!runsLoading && !runsError && runs !== null && runs.length === 0 && (
+            <p className="text-xs text-ink-muted">No runs recorded yet.</p>
+          )}
+          {!runsLoading && !runsError && runs && runs.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px] font-mono">
+                <thead>
+                  <tr className="text-ink-faint border-b border-surface-border/60">
+                    <th className="text-left pb-1 pr-4 font-normal">Case</th>
+                    <th className="text-left pb-1 pr-4 font-normal">Started</th>
+                    <th className="text-right pb-1 pr-4 font-normal">Latency</th>
+                    <th className="text-right pb-1 pr-4 font-normal">Tokens</th>
+                    <th className="text-left pb-1 font-normal">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border/40">
+                  {runs.map((r) => (
+                    <tr key={r.id} className="text-ink-body">
+                      <td className="py-1 pr-4 text-accent-cyan truncate max-w-[120px]">{r.case_id.slice(0, 8)}…</td>
+                      <td className="py-1 pr-4 text-ink-muted whitespace-nowrap">{new Date(r.started_at).toLocaleTimeString()}</td>
+                      <td className="py-1 pr-4 text-right">{r.latency_ms != null ? formatMs(r.latency_ms) : "—"}</td>
+                      <td className="py-1 pr-4 text-right text-ink-muted">{r.input_tokens != null && r.output_tokens != null ? `${r.input_tokens}/${r.output_tokens}` : "—"}</td>
+                      <td className="py-1">
+                        {r.error_text ? (
+                          <span className="text-accent-red">ERR</span>
+                        ) : (
+                          <span className="text-accent-green">OK</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Prompt modal */}
+      {promptOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => setPromptOpen(false)}
+        >
+          <div
+            className="bg-surface-raised border border-surface-border rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-3 border-b border-surface-border flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-ink-primary truncate">
+                  {agent.display} — system prompt
+                </div>
+                <div className="text-[10px] font-mono text-ink-faint truncate">
+                  {prompt?.prompt_path ?? agent.prompt_path}
+                  {prompt?.line_count && (
+                    <span className="ml-2">· {prompt.line_count} lines · {prompt.byte_size.toLocaleString()} B</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {prompt?.content && (
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(prompt.content!)}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-md border border-surface-border text-ink-body hover:bg-surface-raised-hi transition-colors"
+                  >
+                    Copy
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPromptOpen(false)}
+                  className="w-7 h-7 grid place-items-center rounded-md border border-surface-border text-ink-muted hover:text-ink-primary hover:bg-surface-raised-hi transition-colors"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-4 bg-surface-bg">
+              {promptLoading && (
+                <div className="text-sm text-ink-muted flex items-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Loading {agent.prompt_path}…
+                </div>
+              )}
+              {promptError && (
+                <div className="text-sm text-accent-red">{promptError}</div>
+              )}
+              {prompt?.error && (
+                <div className="text-sm text-accent-red mb-2">{prompt.error}</div>
+              )}
+              {prompt?.content && (
+                <pre className="text-xs font-mono text-ink-body whitespace-pre-wrap leading-relaxed">
+                  {prompt.content}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -63,7 +63,7 @@ export default function ROI() {
   );
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="px-6 py-6">
       <header className="mb-5">
         <div className="text-[10px] font-mono uppercase tracking-widest text-accent-brand mb-1">
           AUTHREX · BUSINESS VALUE CALCULATOR

@@ -6,9 +6,11 @@
  * "live" pill; synthetic with a faint "demo" pill.
  */
 import clsx from "clsx";
-import { ArrowRight, ChevronDown, Loader2, Plus, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { ArrowRight, ChevronDown, Loader2, Play, Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+
+import { authHeader } from "../lib/auth";
 
 import { PayerCell } from "../components/PayerCell";
 import { SLABadge } from "../components/SLABadge";
@@ -61,11 +63,13 @@ const STATUS_PILLS: { value: StatusFilter; label: string }[] = [
 ];
 
 export default function Cases() {
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [payerFilter, setPayerFilter] = useState<PayerFilter>("all");
   const [search, setSearch] = useState("");
   const [liveCases, setLiveCases] = useState<SyntheticCase[]>([]);
   const [loadingLive, setLoadingLive] = useState(true);
+  const [showNewCase, setShowNewCase] = useState(false);
 
   // Fetch real backend cases on mount
   useEffect(() => {
@@ -123,7 +127,7 @@ export default function Cases() {
   const activeCount = (counts.running ?? 0) + (counts.pending ?? 0);
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="px-6 py-6">
       {/* Header */}
       <header className="mb-5 flex items-end justify-between gap-4 flex-wrap">
         <div>
@@ -144,6 +148,7 @@ export default function Cases() {
 
         <button
           type="button"
+          onClick={() => setShowNewCase(true)}
           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent-brand text-ink-invert text-sm font-medium hover:opacity-90 transition-opacity"
         >
           <Plus size={14} strokeWidth={2.5} />
@@ -241,7 +246,15 @@ export default function Cases() {
               {filtered.map((c) => (
                 <tr
                   key={c.case_id}
-                  className="hover:bg-surface-raised-hi transition-colors group"
+                  onClick={() => {
+                    if (!c.is_synthetic) navigate(`/cases/${c.case_id}`);
+                  }}
+                  className={clsx(
+                    "transition-colors group",
+                    c.is_synthetic
+                      ? "opacity-70"
+                      : "hover:bg-surface-raised-hi cursor-pointer",
+                  )}
                 >
                   <td className="px-4 py-2.5">
                     <StatusPill status={c.status} />
@@ -330,6 +343,16 @@ export default function Cases() {
           <span className="font-mono">page 1 of 1</span>
         </div>
       </div>
+      {showNewCase && (
+        <NewCaseModal
+          onClose={() => setShowNewCase(false)}
+          onCreated={(c) => {
+            setLiveCases((prev) => [c, ...prev]);
+            setShowNewCase(false);
+            navigate(`/cases/${c.case_id}`);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -370,6 +393,270 @@ function ConfidenceBar({
       <span className="text-[10px] font-mono text-ink-muted w-7 text-right nums-tabular">
         {pct}%
       </span>
+    </div>
+  );
+}
+
+// =============================================================================
+// New Case Modal
+// =============================================================================
+
+const TREATMENT_JCODES: Record<string, string> = {
+  "trastuzumab":                    "J9355",
+  "osimertinib":                    "J9335",
+  "pembrolizumab":                  "J9271",
+  "olaparib":                       "J9305",
+  "T-DXd (trastuzumab deruxtecan)": "J9358",
+  "nivolumab":                      "J9299",
+  "bevacizumab":                    "J9035",
+  "ribociclib":                     "J9999",
+  "enzalutamide":                   "J9180",
+  "lorlatinib":                     "J9999",
+  "brentuximab vedotin":            "J9042",
+  "dabrafenib + trametinib":        "J9999",
+};
+const TREATMENT_LIST = Object.keys(TREATMENT_JCODES);
+
+function toInitials(name: string): string {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => (p[0]?.toUpperCase() ?? "") + ".")
+      .join("") || "P.N."
+  );
+}
+
+interface NewCaseModalProps {
+  onClose: () => void;
+  onCreated: (c: SyntheticCase) => void;
+}
+
+function NewCaseModal({ onClose, onCreated }: NewCaseModalProps) {
+  const [patientName, setPatientName] = useState("");
+  const [treatment, setTreatment]     = useState("trastuzumab");
+  const [payer, setPayer]             = useState<SyntheticCase["payer_id"]>("aetna");
+  const [diagnosis, setDiagnosis]     = useState("");
+  const [stage, setStage]             = useState("IIIA");
+  const [busy, setBusy]               = useState(false);
+  const firstRef                      = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { firstRef.current?.focus(); }, []);
+
+  const jCode    = TREATMENT_JCODES[treatment] ?? "J9999";
+  const initials = toInitials(patientName);
+  const canSubmit = patientName.trim().length > 0 && diagnosis.trim().length > 0;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit || busy) return;
+    setBusy(true);
+
+    const localId = `case_${Math.random().toString(36).slice(2, 10)}`;
+    const newCase: SyntheticCase = {
+      case_id:          localId,
+      status:           "running",
+      patient_initials: initials,
+      treatment,
+      j_code:           jCode,
+      payer_id:         payer,
+      verdict:          null,
+      confidence:       null,
+      submitted_at:     new Date().toISOString(),
+      ago:              "just now",
+      diagnosis,
+      stage,
+      is_synthetic:     false,
+    };
+
+    try {
+      const body = {
+        payer_id:            payer,
+        patient_initials:    initials,
+        requested_treatment: { name: treatment, j_code: jCode },
+        physician_note:      `${initials} — ${diagnosis} Stage ${stage}. Requesting ${treatment} (${jCode}).`,
+        fhir_bundle:         { resourceType: "Bundle", type: "document", entry: [] },
+      };
+      const res = await fetch("/api/v1/cases", {
+        method:  "POST",
+        headers: { ...authHeader(), "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        newCase.case_id = json.case_id;
+      }
+    } catch {
+      // fail-soft: keep the locally-generated ID
+    } finally {
+      setBusy(false);
+    }
+
+    // Stash demo case text so verdict-routing in api.ts can pick the realistic verdict.
+    try {
+      localStorage.setItem(
+        `authrex_demo_case_${newCase.case_id}`,
+        JSON.stringify({
+          text: `${patientName} ${diagnosis} Stage ${stage} treatment ${treatment} payer ${payer}`,
+          treatment,
+          payer_id: payer,
+          diagnosis,
+        }),
+      );
+    } catch { /* ignore quota */ }
+
+    onCreated(newCase);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div className="relative z-10 w-full max-w-md bg-surface-panel border border-surface-border rounded-2xl shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 py-4 border-b border-surface-border">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-primary">
+              New prior-authorization case
+            </h2>
+            <p className="text-[11px] text-ink-muted mt-0.5">
+              Authrex 7-agent DAG will begin evaluation immediately
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded text-ink-muted hover:text-ink-primary hover:bg-surface-raised transition-colors"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* Patient name */}
+          <div>
+            <label className="block text-xs font-medium text-ink-body mb-1">
+              Patient name <span className="text-accent-red">*</span>
+            </label>
+            <input
+              ref={firstRef}
+              value={patientName}
+              onChange={(e) => setPatientName(e.target.value)}
+              placeholder="e.g. Priya Sharma"
+              required
+              className="w-full px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent-brand/40"
+            />
+            {patientName.trim() && (
+              <p className="text-[10px] font-mono text-ink-faint mt-1">
+                Initials:{" "}
+                <span className="text-accent-cyan font-semibold">{initials}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Treatment + J-code */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-ink-body mb-1">
+                Treatment <span className="text-accent-red">*</span>
+              </label>
+              <select
+                value={treatment}
+                onChange={(e) => setTreatment(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary focus:outline-none focus:ring-2 focus:ring-accent-brand/40"
+              >
+                {TREATMENT_LIST.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-ink-body mb-1">
+                J-code (auto)
+              </label>
+              <div className="px-3 py-2 rounded-lg border border-surface-border bg-surface-raised text-sm font-mono text-accent-amber">
+                {jCode}
+              </div>
+            </div>
+          </div>
+
+          {/* Diagnosis */}
+          <div>
+            <label className="block text-xs font-medium text-ink-body mb-1">
+              Diagnosis / ICD-10 <span className="text-accent-red">*</span>
+            </label>
+            <input
+              value={diagnosis}
+              onChange={(e) => setDiagnosis(e.target.value)}
+              placeholder="e.g. Breast cancer (C50.911)"
+              required
+              className="w-full px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent-brand/40"
+            />
+          </div>
+
+          {/* Stage + Payer */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-ink-body mb-1">
+                Stage
+              </label>
+              <select
+                value={stage}
+                onChange={(e) => setStage(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary focus:outline-none focus:ring-2 focus:ring-accent-brand/40"
+              >
+                {["I", "II", "IIIA", "IIIB", "IV"].map((s) => (
+                  <option key={s} value={s}>Stage {s}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-ink-body mb-1">
+                Payer
+              </label>
+              <select
+                value={payer}
+                onChange={(e) => setPayer(e.target.value as SyntheticCase["payer_id"])}
+                className="w-full px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary focus:outline-none focus:ring-2 focus:ring-accent-brand/40"
+              >
+                {PAYERS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm text-ink-muted hover:text-ink-primary transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={busy || !canSubmit}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-brand text-ink-invert text-sm font-medium hover:opacity-90 disabled:opacity-40 transition-opacity"
+            >
+              {busy ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Play size={13} />
+              )}
+              {busy ? "Creating…" : "Create & run Authrex →"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

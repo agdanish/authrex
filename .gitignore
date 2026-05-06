@@ -48,6 +48,12 @@ Thumbs.db
 *.tmp
 .aider*
 
+# Claude Code agent metadata (local only)
+.claude/
+.claude
+**/.claude/
+CLAUDE.md
+
 # Synthea local outputs (we only commit hand-curated seeds)
 backend/app/synthea/output/
 

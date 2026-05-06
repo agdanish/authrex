@@ -40,8 +40,21 @@ async def case_value(
 async def org_value(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    rollup = await org_value_rollup(user["organization_id"])
-    return rollup.__dict__
+    from datetime import datetime, timezone
+    try:
+        rollup = await org_value_rollup(user["organization_id"])
+        return rollup.__dict__
+    except Exception:
+        # DB-less fallback so the dashboard ROI tiles render instead of "loading…"
+        return {
+            "organization_id": user["organization_id"],
+            "asof_iso": datetime.now(timezone.utc).isoformat(),
+            "cases_total": 0, "cases_decided": 0,
+            "verdict_breakdown": {},
+            "direct_savings_mtd_usd": 0, "direct_savings_annual_projection_usd": 0,
+            "avg_decision_seconds": None, "avg_speedup_factor": None,
+            "citations": [], "db_unavailable": True,
+        }
 
 
 @router.get("/star-impact")

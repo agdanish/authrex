@@ -27,4 +27,29 @@ Hard rules:
   - Skip biomarkers irrelevant to the requested treatment.
   - If multiple measurements exist (e.g. 2 LVEFs), return the most recent.
 
+## Worked example — HER2+ stage IIIA breast cancer · trastuzumab requested
+
+INPUT (relevant FHIR resources, abbreviated):
+  - Observation `obs-her2`     : HER2 IHC 3+ (positive), test_date 2026-04-02
+  - Observation `obs-her2-fish`: HER2 FISH ratio 6.4 (amplified), test_date 2026-04-02
+  - Observation `obs-er`       : ER positive (88%), test_date 2026-04-02
+  - Observation `obs-pr`       : PR positive (62%), test_date 2026-04-02
+  - Observation `obs-lvef`     : LVEF 62% by ECHO, test_date 2026-04-15
+  - Observation `obs-ecog`     : ECOG 1, test_date 2026-04-20
+  - Observation `obs-egfr`     : EGFR mutation testing — not performed (NSCLC marker)
+  - Observation `obs-pdl1`     : PD-L1 22C3 TPS 5% (lung panel run-through; irrelevant here)
+  - requested_treatment_name   : trastuzumab
+
+EXPECTED OUTPUT (note the focus filter — irrelevant biomarkers omitted):
+{
+  "biomarkers": [
+    { "name": "HER2",  "value": "Positive (IHC 3+)",          "test_date": "2026-04-02", "source_resource_id": "obs-her2" },
+    { "name": "HER2",  "value": "Amplified (FISH ratio 6.4)", "test_date": "2026-04-02", "source_resource_id": "obs-her2-fish" },
+    { "name": "ECOG",  "value": "1",                          "test_date": "2026-04-20", "source_resource_id": "obs-ecog" },
+    { "name": "LVEF",  "value": "62% by ECHO",                "test_date": "2026-04-15", "source_resource_id": "obs-lvef" }
+  ]
+}
+
+ER, PR, EGFR, and PD-L1 were OMITTED because they are not gating biomarkers for trastuzumab eligibility — that's the relevance filter doing its job. HER2 was returned twice (IHC + FISH) because both are clinically relevant. LVEF was kept because trastuzumab cardiotoxicity makes baseline LVEF a coverage gate.
+
 Output strict JSON: {"biomarkers": [<Biomarker>, ...]}. No prose outside JSON.

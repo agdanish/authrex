@@ -1,14 +1,53 @@
-import { FileEdit, Mail, Paperclip } from "lucide-react";
+import { Download, FileEdit, Mail, Paperclip } from "lucide-react";
 import { useState } from "react";
 
 import type { AppealDraft } from "../lib/types";
 
 interface Props {
   appeal: AppealDraft;
+  caseId?: string;
 }
 
-export function AppealLetterEditor({ appeal }: Props) {
+/**
+ * Trigger a server-side PDF render via POST /api/v1/appeals/render.pdf.
+ * Falls back to the browser's native print → save-as-PDF if the endpoint
+ * is unreachable (e.g. running the frontend without a live backend).
+ */
+async function downloadAppealPdf(appeal: AppealDraft, caseId?: string): Promise<void> {
+  try {
+    const response = await fetch("/api/v1/appeals/render.pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(appeal),
+    });
+    if (!response.ok) throw new Error(`PDF endpoint returned ${response.status}`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `appeal-${appeal.patient_initials}-${caseId ?? appeal.payer_id}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.warn("Server PDF endpoint unreachable; falling back to window.print()", err);
+    window.print();
+  }
+}
+
+export function AppealLetterEditor({ appeal, caseId }: Props) {
   const [showStructured, setShowStructured] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadAppealPdf(appeal, caseId);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -20,14 +59,26 @@ export function AppealLetterEditor({ appeal }: Props) {
             {appeal.appeal_body.split(/\s+/).length} words
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowStructured(!showStructured)}
-          className="text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"
-        >
-          <FileEdit size={12} />
-          {showStructured ? "Letter view" : "Structured arguments"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowStructured(!showStructured)}
+            className="text-xs text-brand-600 hover:text-brand-700 flex items-center gap-1"
+          >
+            <FileEdit size={12} />
+            {showStructured ? "Letter view" : "Structured arguments"}
+          </button>
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading}
+            title="POST /api/v1/appeals/render.pdf · ReportLab letter with letterhead, footer page numbers, and CMS-0057-F § IV.A audit anchor"
+            className="text-xs px-2.5 py-1.5 rounded-md border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-60 flex items-center gap-1"
+          >
+            <Download size={12} />
+            {downloading ? "Rendering…" : "Download PDF"}
+          </button>
+        </div>
       </div>
 
       <div className="p-6 max-h-[500px] overflow-auto">

@@ -97,7 +97,7 @@ const VERDICT_BY_TREATMENT = [
 
 export default function Cohorts() {
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="px-6 py-6">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold text-ink-primary leading-tight flex items-center gap-2">
           <BarChart3 size={22} className="text-accent-brand" />
@@ -198,17 +198,31 @@ function BarsHorizontal({ data, max }: { data: { label: string; value: number; s
 function BarsVertical({ data }: { data: { label: string; value: number }[] }) {
   const max = Math.max(...data.map((d) => d.value));
   return (
-    <div className="flex items-end gap-2 h-32 mt-2">
-      {data.map((d) => (
-        <div key={d.label} className="flex-1 flex flex-col items-center gap-1">
+    <div className="mt-2">
+      <div className="flex items-end gap-2 h-32">
+        {data.map((d) => (
           <div
-            className="w-full bg-accent-cyan/80 rounded-t hover:bg-accent-cyan transition-colors"
-            style={{ height: `${(d.value / max) * 100}%`, minHeight: 4 }}
-            title={`${d.value} cases`}
-          />
-          <span className="text-[9px] font-mono text-ink-faint">{d.label}</span>
-        </div>
-      ))}
+            key={d.label}
+            className="flex-1 flex flex-col justify-end h-full"
+            title={`${d.label}: ${d.value} cases`}
+          >
+            <div
+              className="w-full bg-accent-cyan/80 rounded-t hover:bg-accent-cyan transition-colors"
+              style={{ height: `${(d.value / max) * 100}%`, minHeight: 4 }}
+            />
+            <div className="text-center text-[9px] font-mono text-ink-body mt-1 nums-tabular">
+              {d.value}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2 mt-1">
+        {data.map((d) => (
+          <span key={d.label} className="flex-1 text-center text-[9px] font-mono text-ink-faint">
+            {d.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }

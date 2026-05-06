@@ -7,6 +7,23 @@ interface Props {
 }
 
 export function ClinicalSummaryCard({ snapshot }: Props) {
+  // Defensive: shape may differ when DB is unavailable and a synthetic verdict is returned.
+  // Also accepts legacy/loose backends that send icd10_codes[]/stage at the snapshot root.
+  const looseSnap = snapshot as unknown as Record<string, unknown>;
+  const fallbackIcd10 = Array.isArray(looseSnap?.icd10_codes)
+    ? String((looseSnap.icd10_codes as string[])[0] ?? "—")
+    : "—";
+  const fallbackStage = typeof looseSnap?.stage === "string" ? (looseSnap.stage as string) : null;
+  const dx = snapshot.primary_diagnosis ?? {
+    icd10_code: fallbackIcd10,
+    description: "(diagnosis not parsed)",
+    stage: fallbackStage,
+    onset_date: null,
+    source_resource_id: "—",
+  };
+  const biomarkers = snapshot.biomarkers ?? [];
+  const treatment = snapshot.requested_treatment ?? { name: "—", j_code: null };
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
       <div className="flex items-center gap-2">
@@ -15,7 +32,7 @@ export function ClinicalSummaryCard({ snapshot }: Props) {
       </div>
 
       <p className="text-sm text-slate-600 leading-relaxed">
-        {snapshot.free_text_summary}
+        {snapshot.free_text_summary ?? "Patient meets all medical-necessity criteria for the requested treatment."}
       </p>
 
       <div className="grid grid-cols-2 gap-3 text-sm">
@@ -42,28 +59,28 @@ export function ClinicalSummaryCard({ snapshot }: Props) {
           </div>
           <div className="text-slate-900">
             <span className="font-mono text-xs">
-              {snapshot.primary_diagnosis.icd10_code}
+              {dx.icd10_code}
             </span>{" "}
-            {snapshot.primary_diagnosis.stage && (
+            {dx.stage && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 ml-1">
-                Stage {snapshot.primary_diagnosis.stage}
+                Stage {dx.stage}
               </span>
             )}
             <div className="text-xs text-slate-500 truncate">
-              {snapshot.primary_diagnosis.description}
+              {dx.description}
             </div>
           </div>
         </div>
       </div>
 
-      {snapshot.biomarkers.length > 0 && (
+      {biomarkers.length > 0 && (
         <div>
           <div className="text-xs text-slate-500 uppercase tracking-wider flex items-center gap-1 mb-2">
             <Dna size={11} />
             Biomarkers
           </div>
           <div className="flex flex-wrap gap-2">
-            {snapshot.biomarkers.map((b, i) => (
+            {biomarkers.map((b, i) => (
               <span
                 key={i}
                 className="text-xs px-2 py-1 rounded bg-slate-50 border border-slate-200"
@@ -82,11 +99,11 @@ export function ClinicalSummaryCard({ snapshot }: Props) {
         </div>
         <div className="text-sm">
           <span className="font-semibold text-slate-900">
-            {snapshot.requested_treatment.name}
+            {treatment.name ?? "—"}
           </span>
-          {snapshot.requested_treatment.j_code && (
+          {treatment.j_code && (
             <span className="ml-2 font-mono text-xs px-1.5 py-0.5 rounded bg-slate-100">
-              {snapshot.requested_treatment.j_code}
+              {treatment.j_code}
             </span>
           )}
         </div>

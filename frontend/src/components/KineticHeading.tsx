@@ -37,7 +37,7 @@ export function KineticHeading({
       return (
         <span
           key={i}
-          className={clsx("kinetic-word", accent && "text-gradient-brand")}
+          className={clsx("kinetic-word", accent && "gradient-text-anim")}
           style={{ "--delay": `${idx * staggerMs}ms` } as React.CSSProperties}
         >
           {tok}

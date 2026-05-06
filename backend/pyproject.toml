@@ -17,6 +17,10 @@ dependencies = [
   "boto3==1.35.50",
   "python-dotenv==1.0.1",
   "httpx==0.27.2",
+  "openai==1.52.0",
+  "python-jose[cryptography]==3.3.0",
+  "passlib[bcrypt]==1.7.4",
+  "bcrypt==4.2.0",
 
   # --- Agents + RAG (added May 1+) ------------------------------------
   "langchain==0.3.7",
@@ -25,6 +29,14 @@ dependencies = [
   "fhir.resources==7.1.0",
   "pypdf==5.0.1",
   "pgvector==0.3.6",
+
+  # --- Document rendering + intake (round 17) -------------------------
+  "reportlab==4.5.0",       # appeal-letter PDF renderer
+  "python-multipart==0.0.18", # FastAPI multipart/form-data for /intake uploads
+  "Pillow==11.0.0",         # PIL classifier in Document Intake
+  "python-docx==1.2.0",     # DOCX policy uploads
+  "pypdfium2==4.30.0",      # PDF page rasterization for OCR fallback
+  "pytesseract==0.3.13",    # local OCR fallback (requires tesseract binary)
 
   # --- Multi-replica SSE pub/sub (SCALE-7) ----------------------------
   "redis==5.2.0",

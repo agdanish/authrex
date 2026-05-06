@@ -19,8 +19,10 @@ import {
   LogOut,
   Microscope,
   Network,
+  ScanLine,
   Settings,
   ShieldCheck,
+  Stethoscope,
   Upload,
   UserCheck,
 } from "lucide-react";
@@ -53,14 +55,16 @@ const SECTIONS: NavSection[] = [
     items: [
       { label: "Dashboard",    href: "/dashboard",         icon: LayoutDashboard },
       { label: "Cases",        href: "/cases",             icon: FolderOpen, badge: "47" },
+      { label: "Drop a scan",  href: "/intake",            icon: ScanLine, chip: "INTAKE" },
       { label: "Bulk import",  href: "/cases/bulk-import", icon: Upload, chip: "§ IV.A" },
     ],
   },
   {
     label: "Knowledge",
     items: [
-      { label: "Policies", href: "/policies", icon: BookOpen },
-      { label: "Agents",   href: "/agents",   icon: Cpu },
+      { label: "Policies",  href: "/policies", icon: BookOpen },
+      { label: "Agents",    href: "/agents",   icon: Cpu },
+      { label: "Oncology",  href: "/onco",     icon: Stethoscope, chip: "10 USPs" },
     ],
   },
   {
@@ -74,7 +78,7 @@ const SECTIONS: NavSection[] = [
   {
     label: "Business value",
     items: [
-      { label: "ROI calculator",  href: "/roi",            icon: Calculator,  chip: "$1.26B" },
+      { label: "ROI",             href: "/roi",            icon: Calculator,  chip: "$1.26B" },
       { label: "Compliance",      href: "/compliance",     icon: ShieldCheck, chip: "LIVE" },
       { label: "Industrialize",   href: "/industrialize",  icon: Layers,      chip: "FOUNDRY" },
       { label: "Architecture",    href: "/architecture",   icon: Network,     chip: "5-LAYER" },
@@ -114,7 +118,7 @@ export function Sidenav() {
   return (
     <>
       <aside
-        className="w-60 shrink-0 border-r border-surface-border bg-surface-panel flex flex-col h-[calc(100vh-3.5rem)] sticky top-14"
+        className="w-60 shrink-0 border-r border-surface-border bg-surface-panel flex flex-col h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-84px)] sticky top-14 sm:top-[84px]"
         aria-label="Primary navigation"
       >
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5" aria-label="Sections">
@@ -135,10 +139,11 @@ export function Sidenav() {
           ))}
         </nav>
 
-        <div className="px-3 py-3 border-t border-surface-border">
-          <div className="flex items-center gap-2 px-2 py-2 text-xs group">
+        <div className="px-3 py-3 border-t border-surface-border space-y-2">
+          {/* User identity card */}
+          <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
             <div
-              className="w-7 h-7 rounded-full bg-accent-brand/15 text-accent-brand flex items-center justify-center font-mono font-semibold text-[11px] shrink-0"
+              className="w-8 h-8 rounded-full bg-accent-brand/15 text-accent-brand flex items-center justify-center font-mono font-semibold text-[11px] shrink-0"
               aria-hidden="true"
             >
               {initials}
@@ -160,22 +165,25 @@ export function Sidenav() {
             <button
               type="button"
               onClick={() => setAboutOpen(true)}
-              className="opacity-0 group-hover:opacity-100 p-1 rounded text-ink-muted hover:text-ink-primary hover:bg-surface-raised transition-all focus:outline-none focus:ring-2 focus:ring-accent-brand focus:opacity-100"
+              className="p-1.5 rounded text-ink-muted hover:text-ink-primary hover:bg-surface-raised transition-all focus:outline-none focus:ring-2 focus:ring-accent-brand"
               aria-label="About Authrex (build version, deployment mode, feature flags)"
               title="About Authrex"
             >
-              <Info size={12} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={logout}
-              className="opacity-0 group-hover:opacity-100 p-1 rounded text-ink-muted hover:text-ink-primary hover:bg-surface-raised transition-all focus:outline-none focus:ring-2 focus:ring-accent-brand focus:opacity-100"
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <LogOut size={12} aria-hidden="true" />
+              <Info size={14} aria-hidden="true" />
             </button>
           </div>
+
+          {/* Always-visible Sign out */}
+          <button
+            type="button"
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-ink-body bg-surface-bg hover:bg-accent-red/10 hover:text-accent-red border border-surface-border hover:border-accent-red/40 transition-colors focus:outline-none focus:ring-2 focus:ring-accent-red/40"
+            aria-label="Sign out of Authrex"
+            title="Sign out"
+          >
+            <LogOut size={14} aria-hidden="true" />
+            <span>Sign out</span>
+          </button>
         </div>
       </aside>
       <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />

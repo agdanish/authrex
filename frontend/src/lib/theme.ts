@@ -12,9 +12,11 @@ export type Theme = "light" | "dark";
 const STORAGE_KEY = "authrex-theme";
 
 function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   const stored = window.localStorage.getItem(STORAGE_KEY);
-  return stored === "dark" ? "dark" : "light";
+  // Default to dark — matches the deployed Cognizant-healthcare showcase.
+  // Users who toggle to light have it persisted.
+  return stored === "light" ? "light" : "dark";
 }
 
 function applyThemeToDom(theme: Theme): void {

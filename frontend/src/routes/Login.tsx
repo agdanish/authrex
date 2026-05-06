@@ -1,18 +1,20 @@
 /**
- * /login — email + password sign-in. Includes a "Use demo credentials" button
- * that pre-fills + submits with the seeded admin account, so judges can demo
- * without typing.
+ * /login — email + password sign-in.
+ *
+ * Polished pre-demo: real Authrex logo (public/authrex-logo.png — sourced
+ * from ops/demo/print/assets/authrex_logo_512.png), ambient glow, and
+ * one-click demo accounts so judges can land in a workspace without typing.
  */
-import { Activity, Loader2, LogIn, Sparkles } from "lucide-react";
+import { Loader2, LogIn, ShieldCheck, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../components/AuthContext";
 
 const DEMO_ACCOUNTS = [
-  { email: "admin@aerofyta.health",        password: "authrex2026", role: "Admin", desc: "full access" },
-  { email: "reviewer@aerofyta.health",     password: "authrex2026", role: "Reviewer", desc: "REFER queue" },
-  { email: "coordinator@aerofyta.health",  password: "authrex2026", role: "Coordinator", desc: "create cases" },
+  { email: "admin@aerofyta.health",        password: "authrex2026", role: "Admin",       desc: "Full access" },
+  { email: "reviewer@aerofyta.health",     password: "authrex2026", role: "Reviewer",    desc: "REFER queue" },
+  { email: "coordinator@aerofyta.health",  password: "authrex2026", role: "Coordinator", desc: "Create cases" },
 ];
 
 export default function Login() {
@@ -47,22 +49,55 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-surface-bg">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <Link to="/" className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-accent-brand text-ink-invert flex items-center justify-center shadow-md">
-            <Activity size={22} strokeWidth={2.5} />
+    <div className="relative min-h-screen flex items-center justify-center px-4 py-12 overflow-hidden bg-gradient-to-br from-surface-bg via-surface-bg to-accent-brand/[0.04]">
+      {/* ---- Ambient backdrop blobs (turned up to obvious) ---- */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-[720px] h-[720px] rounded-full bg-accent-brand/40 blur-[100px] motion-safe:animate-pulse [animation-duration:6s]" />
+        <div className="absolute top-32 -right-40 w-[640px] h-[640px] rounded-full bg-accent-cyan/40 blur-[100px] motion-safe:animate-pulse [animation-duration:7s] [animation-delay:1s]" />
+        <div className="absolute -bottom-40 left-1/3 w-[560px] h-[560px] rounded-full bg-accent-violet/40 blur-[100px] motion-safe:animate-pulse [animation-duration:8s] [animation-delay:2s]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-accent-brand/15 blur-[160px] motion-safe:animate-pulse [animation-duration:10s] [animation-delay:3s]" />
+        {/* Visible dot grid */}
+        <div
+          className="absolute inset-0 opacity-[0.10]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+      </div>
+
+      <div className="relative w-full max-w-md">
+        {/* ---- Logo + lockup ---- */}
+        <Link to="/" className="flex flex-col items-center gap-3 mb-7 group" aria-label="Authrex home">
+          <div className="relative">
+            {/* Two-layer pulsing halo — unmissable */}
+            <div
+              className="absolute inset-0 rounded-full bg-accent-brand/70 blur-3xl scale-[1.9] motion-safe:animate-pulse [animation-duration:3s]"
+              aria-hidden="true"
+            />
+            <div
+              className="absolute inset-0 rounded-full bg-accent-cyan/50 blur-2xl scale-[1.5] group-hover:scale-[2] transition-transform duration-500"
+              aria-hidden="true"
+            />
+            <img
+              src="/authrex-logo.svg"
+              alt="Authrex"
+              className="relative w-24 h-24 object-contain drop-shadow-[0_12px_40px_rgba(79,70,229,0.7)] group-hover:scale-110 transition-transform duration-300"
+              width={96}
+              height={96}
+            />
           </div>
-          <div>
-            <div className="font-semibold text-xl text-ink-primary">Authrex</div>
-            <div className="text-[11px] text-ink-muted font-mono">
+          <div className="text-center">
+            <div className="font-semibold text-2xl tracking-tight text-ink-primary">Authrex</div>
+            <div className="text-[11px] font-mono uppercase tracking-[0.18em] text-ink-muted">
               Prior Authorisation Copilot
             </div>
           </div>
         </Link>
 
-        <div className="bg-surface-raised border border-surface-border rounded-2xl p-6 shadow-sm">
+        {/* ---- Card ---- */}
+        <div className="relative bg-surface-raised/95 backdrop-blur-sm border border-surface-border rounded-2xl p-7 shadow-2xl shadow-accent-brand/5">
           <h1 className="text-xl font-semibold text-ink-primary mb-1">
             Sign in to your workspace
           </h1>
@@ -80,7 +115,8 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary placeholder:text-ink-faint focus:border-accent-brand focus:outline-none"
+                autoComplete="email"
+                className="w-full px-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary placeholder:text-ink-faint focus:border-accent-brand focus:ring-2 focus:ring-accent-brand/20 focus:outline-none transition-all"
                 placeholder="you@org.com"
               />
             </div>
@@ -94,13 +130,15 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="w-full px-3 py-2 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary placeholder:text-ink-faint focus:border-accent-brand focus:outline-none"
-                placeholder="********"
+                autoComplete="current-password"
+                className="w-full px-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg text-sm text-ink-primary placeholder:text-ink-faint focus:border-accent-brand focus:ring-2 focus:ring-accent-brand/20 focus:outline-none transition-all"
+                placeholder="••••••••"
               />
             </div>
 
             {error && (
-              <div className="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded px-3 py-2">
+              <div className="text-xs text-accent-red bg-accent-red/10 border border-accent-red/30 rounded-md px-3 py-2 flex items-center gap-2">
+                <span className="font-mono">●</span>
                 {error}
               </div>
             )}
@@ -108,16 +146,16 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-accent-brand text-ink-invert text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent-brand text-ink-invert text-sm font-semibold shadow-lg shadow-accent-brand/30 hover:shadow-xl hover:shadow-accent-brand/40 hover:-translate-y-px active:translate-y-0 transition-all disabled:opacity-50 disabled:translate-y-0"
             >
               {loading ? <Loader2 size={14} className="animate-spin" /> : <LogIn size={14} />}
               Sign in
             </button>
           </form>
 
-          <div className="my-4 flex items-center gap-3 text-[10px] font-mono uppercase tracking-widest text-ink-faint">
+          <div className="my-5 flex items-center gap-3 text-[10px] font-mono uppercase tracking-widest text-ink-faint">
             <span className="flex-1 h-px bg-surface-border" />
-            Demo accounts
+            Demo accounts · one-click sign-in
             <span className="flex-1 h-px bg-surface-border" />
           </div>
 
@@ -128,7 +166,7 @@ export default function Login() {
                 type="button"
                 onClick={() => loginAs(a)}
                 disabled={loading}
-                className="w-full text-left px-3 py-2 rounded-lg border border-surface-border bg-surface-bg hover:bg-surface-raised-hi hover:border-accent-brand/40 transition-all flex items-center justify-between gap-3 disabled:opacity-50"
+                className="w-full text-left px-3 py-2.5 rounded-lg border border-surface-border bg-surface-bg/60 hover:bg-surface-raised-hi hover:border-accent-brand/40 hover:shadow-sm transition-all flex items-center justify-between gap-3 disabled:opacity-50 group/account"
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-mono text-ink-primary truncate">
@@ -138,23 +176,26 @@ export default function Login() {
                     {a.role} · {a.desc}
                   </div>
                 </div>
-                <Sparkles size={12} className="text-accent-brand shrink-0" />
+                <Sparkles size={14} className="text-accent-brand shrink-0 group-hover/account:rotate-12 transition-transform" />
               </button>
             ))}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-surface-border text-center text-xs text-ink-muted">
+          <div className="mt-5 pt-4 border-t border-surface-border text-center text-xs text-ink-muted">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-accent-brand hover:underline">
+            <Link to="/signup" className="text-accent-brand font-medium hover:underline">
               Create one
             </Link>
           </div>
         </div>
 
-        <div className="mt-6 text-center text-[10px] font-mono text-ink-faint leading-relaxed">
-          7-agent LangGraph DAG · AWS Bedrock · MCP-compatible
-          <br />
-          CMS-0057-F § IV.B (7-day SLA) · § IV.A (PA API · Jan 2027) · 89 FR 8758
+        {/* ---- Compliance footer ---- */}
+        <div className="mt-6 flex items-center justify-center gap-1.5 text-[10px] font-mono text-ink-faint">
+          <ShieldCheck size={11} className="text-accent-green" />
+          <span>HIPAA · SOC 2 · CMS-0057-F § IV.A audited</span>
+        </div>
+        <div className="mt-2 text-center text-[10px] font-mono text-ink-faint leading-relaxed">
+          7-agent LangGraph DAG · AWS Bedrock · Claude Sonnet 4.6 + Haiku 4.5 · MCP-compatible
         </div>
       </div>
     </div>

@@ -264,35 +264,121 @@ function CitationChain({ citations }) {
 }
 
 // ---------- Appeal letter (printed-letter feel) ----------
+//
+// "Download PDF" prints the letter via the browser's native print → save-as-
+// PDF flow. The standalone runs from S3 with no backend, so we can't call the
+// server-side `/appeals/render.pdf` endpoint here — print() is the universal
+// fallback. Triggering print() also cleanly hides every other panel/sidebar
+// thanks to the `@media print` rules in Authrex.html → `body.is-printing-appeal`.
 function AppealLetterEditor({ draft }) {
   const [view, setView] = useStateR("letter");
   if (!draft) return null;
   const wordCount = draft.appeal_body.split(/\s+/).filter(Boolean).length;
+
+  // Force the "letter" view + a body class while the print dialog is open
+  // so the on-screen toolbar / sidebar / topbar disappear in the PDF output.
+  const handleDownload = () => {
+    const prevView = view;
+    setView("letter");
+    document.body.classList.add("is-printing-appeal");
+    const onAfter = () => {
+      document.body.classList.remove("is-printing-appeal");
+      setView(prevView);
+      window.removeEventListener("afterprint", onAfter);
+    };
+    window.addEventListener("afterprint", onAfter);
+    // Defer to next tick so React commits the view + body-class change first.
+    setTimeout(() => window.print(), 60);
+  };
+
+  // Synthetic letterhead values mirror app/render/appeal_pdf.py so the
+  // standalone print output looks like the same letter the backend
+  // ReportLab path produces. PRODUCTION: pull from `tenants` row.
+  const today = new Date().toLocaleDateString("en-US", {
+    year: "numeric", month: "long", day: "numeric",
+  });
+  const payerBlock = {
+    aetna:  ["Aetna Health Inc.", "Attn: Medical Director · Oncology Appeals", "P.O. Box 14079", "Lexington, KY 40512"],
+    uhc:    ["UnitedHealthcare Insurance Company", "Attn: Medical Director · Pharmacy Appeals", "P.O. Box 30432", "Salt Lake City, UT 84130"],
+    humana: ["Humana Inc.", "Attn: Medical Director · Oncology Appeals", "P.O. Box 14601", "Lexington, KY 40512"],
+  }[(draft.payer_id || "").toLowerCase()] || [
+    `${(draft.payer_id || "").toUpperCase() || "Payer"}`,
+    "Attn: Medical Director · Appeals",
+    "[address on file]",
+  ];
+
   return (
-    <section className="bg-surface-raised border border-surface-border rounded-2xl overflow-hidden">
+    <section className="bg-surface-raised border border-surface-border rounded-2xl overflow-hidden appeal-letter-card">
       {/* accent top border */}
       <div className="h-0.5 w-full" style={{ background: "linear-gradient(90deg, #7c5cff 0%, #22d3ee 100%)" }} />
 
-      <div className="px-5 py-3 border-b border-surface-border flex items-center gap-2 flex-wrap">
+      <div className="px-5 py-3 border-b border-surface-border flex items-center gap-2 flex-wrap no-print">
         <I.Mail size={16} className="text-ink-body" />
         <h3 className="font-semibold tracking-tight text-ink-primary">Drafted Appeal Letter</h3>
         <Pill tone="slate" className="ml-1">{wordCount} words</Pill>
-        <div className="ml-auto inline-flex bg-surface-bg rounded-md p-0.5 text-xs font-medium border border-surface-border">
+        <div className="ml-auto inline-flex items-center gap-1.5">
+          <div className="inline-flex bg-surface-bg rounded-md p-0.5 text-xs font-medium border border-surface-border">
+            <button
+              onClick={() => setView("letter")}
+              className={`px-2.5 py-1 rounded transition-colors ${view === "letter" ? "bg-surface-raised-hi text-ink-primary" : "text-ink-muted hover:text-ink-body"}`}
+            >Letter</button>
+            <button
+              onClick={() => setView("structured")}
+              className={`px-2.5 py-1 rounded transition-colors ${view === "structured" ? "bg-surface-raised-hi text-ink-primary" : "text-ink-muted hover:text-ink-body"}`}
+            >Structured</button>
+          </div>
           <button
-            onClick={() => setView("letter")}
-            className={`px-2.5 py-1 rounded transition-colors ${view === "letter" ? "bg-surface-raised-hi text-ink-primary" : "text-ink-muted hover:text-ink-body"}`}
-          >Letter</button>
-          <button
-            onClick={() => setView("structured")}
-            className={`px-2.5 py-1 rounded transition-colors ${view === "structured" ? "bg-surface-raised-hi text-ink-primary" : "text-ink-muted hover:text-ink-body"}`}
-          >Structured</button>
+            onClick={handleDownload}
+            title="Open the browser print dialog. Choose 'Save as PDF' → produces a payer-grade letter."
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border border-surface-border bg-accent-brand/10 text-accent-brand-glow hover:bg-accent-brand/20 transition-colors"
+          >
+            <I.Download size={14} />
+            <span>Download PDF</span>
+          </button>
         </div>
       </div>
 
       {view === "letter" ? (
-        <div className="px-6 py-6 bg-surface-bg/40">
-          <div className="max-w-[680px] mx-auto max-h-[480px] overflow-auto">
+        <div className="px-6 py-6 bg-surface-bg/40 appeal-letter-printable">
+          {/*
+            "appeal-letter-printable" + the @media print rules in
+            Authrex.html together produce a clean letter on paper:
+            letterhead block + date + payer block + body, no sidebar.
+          */}
+          <header className="appeal-letterhead">
+            <h2 className="font-serif text-[20px] font-semibold text-ink-primary">Authrex Medical Associates</h2>
+            <div className="text-[11px] text-accent-brand mt-0.5">Provider-Side Prior Authorization · Oncology</div>
+            <div className="text-[10.5px] text-ink-muted mt-1">
+              1 Care Square, Suite 400 · San Francisco, CA 94105 · Tel (415) 555-0140 · NPI 1234567890
+            </div>
+            <hr className="mt-2 mb-3 border-accent-brand/40" />
+          </header>
+          <div className="appeal-meta text-[12.5px] text-ink-body">
+            <div className="mb-2">{today}</div>
+            <div className="mb-3 leading-[1.5]">
+              {payerBlock.map((line, i) => (<div key={i}>{line}</div>))}
+            </div>
+            <div className="font-semibold text-ink-primary mb-2">
+              Re: Prior Authorization Appeal — Patient {draft.patient_initials || "—"} — {draft.requested_treatment || "—"}
+            </div>
+            <table className="text-[11.5px] mb-3 border-t border-b border-surface-border">
+              <tbody>
+                <tr><td className="font-semibold pr-3 py-1 text-ink-primary">Patient initials:</td><td>{draft.patient_initials || "—"}</td></tr>
+                <tr><td className="font-semibold pr-3 py-1 text-ink-primary">Treatment requested:</td><td>{draft.requested_treatment || "—"}</td></tr>
+                <tr><td className="font-semibold pr-3 py-1 text-ink-primary">Original denial date:</td><td>{draft.denial_date || "—"}</td></tr>
+                <tr><td className="font-semibold pr-3 py-1 text-ink-primary">Payer:</td><td>{(draft.payer_id || "—").toUpperCase()}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="max-w-[680px] mx-auto max-h-[480px] overflow-auto appeal-body-scroll">
+            <p className="font-serif text-[14.5px] text-ink-body mb-3">Dear Medical Director,</p>
             <pre className="whitespace-pre-wrap font-serif text-[15px] leading-[1.7] text-ink-body">{draft.appeal_body}</pre>
+          </div>
+          <div className="appeal-signature mt-3 text-[12.5px] text-ink-body">
+            <p className="mb-1">Respectfully submitted,</p>
+            <div className="h-10" />
+            <p className="font-semibold text-ink-primary">Authrex Clinical Authorization Team</p>
+            <p className="text-[10.5px] text-ink-muted">On behalf of the requesting provider</p>
           </div>
         </div>
       ) : (

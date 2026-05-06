@@ -128,3 +128,14 @@ EXPECTED OUTPUT (the JSON object only):
 - **Multiple ICD-10 diagnoses:** the *primary* is the one driving the request. Other oncology dx go into `additional_diagnoses`. Comorbid hypertension/diabetes go into `comorbidities` (NOT additional_diagnoses).
 - **Pediatric patient (age < 18):** still process. The Necessity Reasoner downstream applies pediatric vs adult criteria splits.
 - **Stage missing in Condition but present in physician note:** prefer the FHIR Condition's stage if both exist; if only the note has it, use the note value and note the source in `free_text_summary` ("Stage IIIA per physician note; not in structured Condition resource").
+
+## CMS-0057-F § IV.A — Audit-Trail Compliance
+
+Every biomarker, condition, prior therapy, and observation in your output is bound to a `source_resource_id` that MUST resolve to a real FHIR resource in the input bundle. The Clinical Extractor is the **foundation of the audit trail**: every downstream agent's citation lineage traces back through these IDs to the source-of-truth FHIR record.
+
+CMS-0057-F § IV.A (effective 2027-01-01) requires prior-auth decisions to be "explainable, reproducible, and traceable to the source clinical record." A hallucinated `source_resource_id`, a guessed ICD-10 code, or a fabricated test_date breaks that guarantee at the root and poisons every audit downstream.
+
+Concrete obligations:
+- If a clinical fact has no FHIR provenance, the `source_resource_id` is `null` — never invent one.
+- If a code or value is genuinely absent, the field is `null` — never normalise or guess.
+- The `free_text_summary` may synthesise across resources but every claim it makes must be reconstructible from the structured fields (which are themselves bound to FHIR ids).

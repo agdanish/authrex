@@ -67,8 +67,18 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         llm_provider=settings.LLM_PROVIDER,
         environment=settings.ENVIRONMENT,
     )
-    # CRITICAL — DB must connect or the API is non-functional. Re-raises.
-    await db.connect()
+    # DB connect — fail-soft so DB-less deployments (S3 policies API only,
+    # public ECS demo without RDS, etc.) can still boot. Endpoints that need
+    # DB will return 503 at request time when the pool is unavailable.
+    db_disabled = "disabled" in (settings.DATABASE_URL or "")
+    if db_disabled:
+        log.warning("authrex.startup.db_skipped", reason="DATABASE_URL points to disabled host")
+    else:
+        try:
+            await db.connect()
+        except Exception as e:  # noqa: BLE001
+            log.warning("authrex.startup.db_unavailable", error=str(e)[:200])
+            db_disabled = True
 
     # OpenTelemetry — no-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset.
     def _otel_setup():
@@ -257,8 +267,10 @@ async def request_id_middleware(request, call_next):
 # --- Routes ------------------------------------------------------------------
 from app.api import (  # noqa: E402
     agents_manifest,
+    appeals as appeals_api,
     architecture as architecture_api,
     auth,
+    intake as intake_api,
     auth_oidc as auth_oidc_api,
     authz as authz_api,
     business_value as business_value_api,
@@ -292,6 +304,8 @@ from app.api import (  # noqa: E402
     privacy as privacy_api,
     prompts as prompts_api,
     v2 as v2_api,
+    policies as policies_api,
+    oncology_stack,
 )
 from app.integrations.trizetto.router import router as trizetto_router  # noqa: E402
 from app.mcp.server import router as mcp_router  # noqa: E402
@@ -300,6 +314,8 @@ app.include_router(healthz.router,         prefix="/api/v1")
 app.include_router(llm_ping.router,        prefix="/api/v1")
 app.include_router(auth.router,            prefix="/api/v1")
 app.include_router(cases.router,           prefix="/api/v1")
+app.include_router(appeals_api.router,     prefix="/api/v1")
+app.include_router(intake_api.router,      prefix="/api/v1")
 app.include_router(jobs_api.router,        prefix="/api/v1")
 app.include_router(stream.router,          prefix="/api/v1")
 app.include_router(demo.router,            prefix="/api/v1")
@@ -333,6 +349,8 @@ app.include_router(stream_completion_api.router, prefix="/api/v1")
 app.include_router(tenants_api.router, prefix="/api/v1")
 app.include_router(privacy_api.router, prefix="/api/v1")
 app.include_router(prompts_api.router, prefix="/api/v1")
+app.include_router(policies_api.router, prefix="/api/v1")
+app.include_router(oncology_stack.router, prefix="/api/v1")
 # fhir_bulk router carries its own /fhir prefix
 app.include_router(fhir_bulk_api.router)
 

@@ -542,6 +542,10 @@ function App() {
     view = <CasesPage navigate={navigate} allCases={allCases} />;
   } else if (hash === "#/cases/bulk-import") {
     view = <BulkImportPage navigate={navigate} />;
+  } else if (hash === "#/intake") {
+    view = <IntakeFlowPage navigate={navigate} />;
+  } else if (hash === "#/about") {
+    view = <AboutPage navigate={navigate} />;
   } else if (hash === "#/compare") {
     view = <ComparePage navigate={navigate} fixtures={fixtures} />;
   } else if (hash === "#/policies") {

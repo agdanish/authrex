@@ -22,6 +22,15 @@ _DEV_JWT_SECRET_SENTINEL = "authrex-dev-secret-change-in-prod-via-env-CmDbYVQrV3
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENV_FILE = _REPO_ROOT / ".env"
 
+# Pydantic-settings reads `.env` into the Settings object only — it does NOT
+# export keys into os.environ. boto3, however, reads AWS_* purely from the
+# process environment. Bridge the two so the same `.env` works for both.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv(_ENV_FILE, override=False)
+except ImportError:
+    pass
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -49,6 +58,12 @@ class Settings(BaseSettings):
     BEDROCK_GUARDRAIL_ID: str = ""
     BEDROCK_GUARDRAIL_VERSION: str = "DRAFT"
     BEDROCK_KB_ID: str = ""
+    # S3 bucket where payer policy PDFs are stored for Bedrock KB ingestion.
+    # Format: authrex-policies-{accountid}-aps1
+    POLICIES_S3_BUCKET: str = ""
+    # Bedrock KB data source ID (created when you set up the KB in the console).
+    # Required to call start_ingestion_job.
+    BEDROCK_KB_DATA_SOURCE_ID: str = ""
 
     # --- Database --------------------------------------------------------
     DATABASE_URL: str = "postgresql://authrex:authrex@localhost:5432/authrex"

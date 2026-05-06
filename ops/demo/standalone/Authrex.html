@@ -462,6 +462,62 @@
         transition-duration: 0.001ms !important;
       }
     }
+
+    /* ====================================================================
+       APPEAL-LETTER PRINT MODE
+       Browser print → Save-as-PDF produces a clean, payer-grade letter.
+       Triggered by AppealLetterEditor.handleDownload() which adds the
+       `is-printing-appeal` class to <body>, calls window.print(), then
+       removes the class on `afterprint`.
+
+       Strategy: while printing, hide every element EXCEPT
+       `.appeal-letter-printable` and its descendants. That panel was
+       designed in result-panels.jsx with a self-contained letterhead so
+       it stands alone on paper.
+       ==================================================================== */
+    @page {
+      size: Letter;
+      margin: 0.75in 0.75in 0.85in 0.75in;
+    }
+
+    @media print {
+      /* Force light theme on print regardless of in-app dark/light state */
+      html, body, body.theme-dark {
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+      /* When the user clicks Download PDF, hide everything except the
+         marked printable region. Without this body-class gate, the user
+         could still Ctrl+P the whole page and get a usable (if cluttered)
+         compliance dump — that's intentional fallback behaviour. */
+      body.is-printing-appeal *,
+      body.is-printing-appeal *::before,
+      body.is-printing-appeal *::after { visibility: hidden !important; }
+      body.is-printing-appeal .appeal-letter-printable,
+      body.is-printing-appeal .appeal-letter-printable * { visibility: visible !important; }
+      body.is-printing-appeal .appeal-letter-printable {
+        position: absolute !important;
+        left: 0; top: 0; right: 0;
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        background: #ffffff !important;
+        font-family: "Crimson Pro", "Source Serif Pro", Georgia, serif;
+        color: #0f172a;
+      }
+      /* Drop the on-screen scroll cap so the body flows across pages */
+      body.is-printing-appeal .appeal-body-scroll {
+        max-height: none !important;
+        overflow: visible !important;
+      }
+      /* Force letterhead colours through colour-adjust override */
+      body.is-printing-appeal .appeal-letterhead h2 { color: #0f172a !important; }
+      body.is-printing-appeal hr { border-color: #4f46e5 !important; }
+      /* Always hide the toolbar / header strip / sidebar even when not in
+         the body-class flow — `.no-print` is the explicit opt-out. */
+      .no-print { display: none !important; }
+    }
   </style>
 
   <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -471,29 +527,33 @@
 <body>
   <div id="root"></div>
 
-  <script type="text/babel" src="fixtures.jsx"></script>
-  <script type="text/babel" src="data.jsx"></script>
-  <script type="text/babel" src="agents-data.jsx"></script>
-  <script type="text/babel" src="policies-data.jsx"></script>
-  <script type="text/babel" src="compliance-data.jsx"></script>
-  <script type="text/babel" src="bulk-import-data.jsx"></script>
-  <script type="text/babel" src="reviewer-data.jsx"></script>
-  <script type="text/babel" src="cohorts-data.jsx"></script>
-  <script type="text/babel" src="tweaks-panel.jsx"></script>
-  <script type="text/babel" src="components.jsx"></script>
-  <script type="text/babel" src="effects.jsx"></script>
-  <script type="text/babel" src="onboarding-tour.jsx"></script>
-  <script type="text/babel" src="trace-panel.jsx"></script>
-  <script type="text/babel" src="result-panels.jsx"></script>
-  <script type="text/babel" src="dashboard.jsx"></script>
-  <script type="text/babel" src="cases-page.jsx"></script>
-  <script type="text/babel" src="compare-page.jsx"></script>
-  <script type="text/babel" src="agents-page.jsx"></script>
-  <script type="text/babel" src="policies-page.jsx"></script>
-  <script type="text/babel" src="compliance-page.jsx"></script>
-  <script type="text/babel" src="bulk-import-page.jsx"></script>
-  <script type="text/babel" src="reviewer-page.jsx"></script>
-  <script type="text/babel" src="cohorts-page.jsx"></script>
-  <script type="text/babel" src="app.jsx"></script>
+  <script type="text/babel" src="fixtures.jsx?v=20260506e"></script>
+  <script type="text/babel" src="data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="agents-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="policies-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="compliance-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="bulk-import-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="intake-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="about-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="reviewer-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="cohorts-data.jsx?v=20260506e"></script>
+  <script type="text/babel" src="tweaks-panel.jsx?v=20260506e"></script>
+  <script type="text/babel" src="components.jsx?v=20260506e"></script>
+  <script type="text/babel" src="effects.jsx?v=20260506e"></script>
+  <script type="text/babel" src="onboarding-tour.jsx?v=20260506e"></script>
+  <script type="text/babel" src="trace-panel.jsx?v=20260506e"></script>
+  <script type="text/babel" src="result-panels.jsx?v=20260506e"></script>
+  <script type="text/babel" src="dashboard.jsx?v=20260506e"></script>
+  <script type="text/babel" src="cases-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="compare-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="agents-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="policies-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="compliance-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="bulk-import-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="intake-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="about-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="reviewer-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="cohorts-page.jsx?v=20260506e"></script>
+  <script type="text/babel" src="app.jsx?v=20260506e"></script>
 </body>
 </html>

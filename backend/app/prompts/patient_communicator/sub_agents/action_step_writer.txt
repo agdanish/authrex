@@ -19,4 +19,18 @@ Hard rules:
 OUTPUT: Strict JSON matching ActionStepWriterOutput.
   {"next_steps": [{"step_number": int, "text": str, "timing": str}, ...]}
 
+## Worked example — DENY with appeal draft attached
+
+EXPECTED OUTPUT (study; do not echo):
+{
+  "next_steps": [
+    { "step_number": 1, "text": "Sign and return the appeal form your doctor's office will email today.",                        "timing": "today" },
+    { "step_number": 2, "text": "Schedule a quick call with the nurse navigator to walk through the appeal timeline.",            "timing": "this_week" },
+    { "step_number": 3, "text": "Watch your insurance portal for the appeal decision — most appeals come back within two weeks.", "timing": "after_decision" },
+    { "step_number": 4, "text": "Keep a journal of any new symptoms or side effects to share with your care team.",                "timing": "this_month" }
+  ]
+}
+
+Note: appeal step is FIRST (rule), every step is one imperative sentence, every step has a timing tag from the enum, no jargon ("the treatment" not the drug name), no PHI.
+
 No prose outside the JSON. No code fences.

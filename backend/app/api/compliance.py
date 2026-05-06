@@ -37,5 +37,22 @@ async def get_case_scorecard(
 async def get_org_scorecard(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Return the org-level compliance rollup."""
-    return await org_scorecard(user["organization_id"])
+    """Return the org-level compliance rollup. DB-less deploys (no RDS) get
+    a zeroed scorecard rather than a 500 — clauses + deadlines still render
+    because they're hard-coded regulatory data."""
+    from datetime import datetime, timezone
+    try:
+        return await org_scorecard(user["organization_id"])
+    except Exception:
+        return {
+            "organization_id": user["organization_id"],
+            "asof_iso": datetime.now(timezone.utc).isoformat(),
+            "totals": {"cases_total": 0, "cases_decided": 0, "denies": 0, "denies_with_review": 0, "audit_complete_cases": 0},
+            "headline_metrics": {
+                "tat_compliance_pct": 0, "sb1120_compliance_pct": 0,
+                "audit_completeness_pct": 0, "mean_tat_seconds": 0, "max_tat_seconds": 0,
+            },
+            "clauses": [],
+            "deadlines": {},
+            "db_unavailable": True,
+        }

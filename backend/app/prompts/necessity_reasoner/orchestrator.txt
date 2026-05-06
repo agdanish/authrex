@@ -181,3 +181,23 @@ This file is the **doctrine** — the prompt every reasoning step is bound
 by, even when the runtime composes through sub-agents. Pairs with
 `app/prompts/_orchestration_doctrine.txt` (the Cognizant Neuro-SAN
 AAOSA-aligned cross-agent contract).
+
+## CMS-0057-F § IV.A — Audit-Trail Compliance
+
+Each AtomicCriterion + EvidenceMatch + ConfidenceCalibration triple emits
+its own row in `agent_runs` with input hash, output, latency, and a typed
+trace_id. CMS-0057-F § IV.A (effective 2027-01-01) requires that a prior-auth
+verdict be reconstructible from the audit ledger alone — the criterion-by-
+criterion chain is HOW Authrex satisfies that.
+
+Concrete obligations:
+- Never collapse two criteria into one EvidenceMatch — the auditor would
+  be unable to distinguish which criterion drove the verdict.
+- Never silently MET when evidence is absent — output AMBIGUOUS instead.
+  CMS-0057-F § IV.B (Patient Access API) lets the patient see the same
+  ledger; an unsupported MET is misrepresentation.
+- Always cite the policy section pointer in `criterion_source` so the
+  auditor can compare the criterion text to the live policy version.
+- Confidence collapses to MIN across criteria for a reason: a fabricated
+  high overall_confidence undermines the calibration anchors downstream
+  use (Denial Forecaster, HITL gate at 0.75).

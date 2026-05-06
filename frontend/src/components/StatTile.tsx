@@ -5,6 +5,10 @@
  *   sparkline: shows a sparkline beside / under
  *   trend: shows ↑ or ↓ delta vs prior period
  *   gauge: bar gauge for 0-100 percentages
+ *
+ * Hover treatment: lifts -2px, brand-coloured shadow, accent gradient
+ * top-border becomes visible. Designed to communicate "click me / read me"
+ * without needing a CTA on every tile.
  */
 import clsx from "clsx";
 import { TrendingDown, TrendingUp } from "lucide-react";
@@ -42,7 +46,7 @@ export function StatTile({
   extra,
 }: Props) {
   return (
-    <div className="bg-surface-raised border border-surface-border rounded-2xl p-5 flex flex-col gap-2">
+    <div className="card-premium bg-surface-raised border border-surface-border rounded-2xl p-5 flex flex-col gap-2 hover:border-accent-brand/40">
       <div className="text-[10px] font-mono uppercase tracking-widest text-ink-muted">
         {eyebrow}
       </div>

@@ -209,6 +209,7 @@ const SIDENAV_SECTIONS = [
     items: [
       { key: "dashboard",   label: "Dashboard",     icon: "LayoutDashboard", to: "#/dashboard", kbd: "G D" },
       { key: "cases",       label: "Cases",         icon: "FolderOpen",      to: "#/cases",     kbd: "G C", badgeKey: "active" },
+      { key: "intake",      label: "Drop a scan",   icon: "Upload",          to: "#/intake",    kbd: "G I", chip: "INTAKE" },
       { key: "compare",     label: "Compare",       icon: "Scale",           to: "#/compare",   kbd: "G K" },
       { key: "bulk",        label: "Bulk Import",   icon: "Upload",          to: "#/cases/bulk-import", kbd: "G B", chip: "CMS-0057-F" },
     ],
@@ -226,12 +227,7 @@ const SIDENAV_SECTIONS = [
       { key: "cohorts",     label: "Cohorts",       icon: "BarChart3",       to: "#/cohorts",   kbd: "G O" },
       { key: "reviewer",    label: "Reviewer Queue",icon: "UserCheck",       to: "#/reviewer",  kbd: "G R", badgeKey: "refer" },
       { key: "compliance",  label: "Compliance",    icon: "ShieldCheck",     to: "#/compliance",kbd: "G M" },
-    ],
-  },
-  {
-    label: "Admin",
-    items: [
-      { key: "settings",    label: "Settings",      icon: "Settings",        to: null,           disabled: true, chip: "Soon" },
+      { key: "about",       label: "About Authrex", icon: "Sparkles",        to: "#/about",     kbd: "G ?", chip: "PITCH" },
     ],
   },
 ];

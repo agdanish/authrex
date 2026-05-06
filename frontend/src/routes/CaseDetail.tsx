@@ -218,7 +218,7 @@ export default function CaseDetail() {
           )}
 
           {result?.appeal_draft && (
-            <AppealLetterEditor appeal={result.appeal_draft} />
+            <AppealLetterEditor appeal={result.appeal_draft} caseId={caseId} />
           )}
 
           {result?.patient_communication && (

@@ -321,6 +321,92 @@ is shared so a single case-level budget bounds the entire fan-out.
             ─────── HITL Reviewer Console + Audit Log Stream ───────
 ```
 
+## 7B. Document Intake — pre-DAG layer for real-world inputs
+
+Indian hospital reality is that prior-auth submissions almost never arrive
+as clean FHIR R4 bundles. They arrive as:
+
+- Handwritten oncology prescriptions on practice letterhead, often with
+  brand names (Herceptin, Remdovac), shorthand doses (6 mg/kg q3w), and
+  scribbled signatures.
+- Phone-camera photos of pathology slips, echo reports, lab results — often
+  skewed, with variable lighting and visible camera glare.
+- Faxed payer denial letters with stamped headers and signatures.
+- Mixed-format PDFs: typed letterhead + handwritten margins.
+
+The 7-agent DAG above only runs on a typed `ClinicalSnapshot`. The
+**Document Intake** layer is a pre-DAG pipeline that converts those messy
+inputs into the typed payload the rest of the system expects. It lives at
+`app/agents/intake/`. Per AAOSA bounded responsibility, this layer ONLY
+produces an `IntakeResult` (classification + OCR + partial snapshot +
+audit) — it never reasons about coverage.
+
+### 7B.1 Pipeline
+
+| # | Stage              | Implementation                                                       | LLM tokens?       |
+|---|--------------------|----------------------------------------------------------------------|-------------------|
+| 1 | Classifier         | `app/agents/intake/classifier.py` (PIL stats; edge density, stroke variance, paper texture) | none — deterministic |
+| 2 | Vision Extractor   | Claude Sonnet 4.6 vision via `LLMClient.complete_with_image()` (Bedrock multimodal Converse) | yes — one call    |
+| 3 | FHIR Shaper        | embedded in (2) — vision prompt emits the partial ClinicalSnapshot in the same structured-JSON output | none — same call  |
+
+Stage 1 is cheap and deterministic — every upload runs through it before any
+LLM is invoked. Its output is fed into stage 2's user prompt as a routing
+hint ("this is a handwritten Rx; expect drug name + dose"), which materially
+improves the vision model's extraction accuracy on poor-quality inputs.
+
+### 7B.2 Confidence and HITL routing
+
+The vision extractor emits per-field confidence ∈ [0, 1] plus an
+`overall_confidence` (the MIN over critical fields). Routing rules:
+
+- `overall_confidence ≥ 0.7` AND no binding field missing → autonomous flow
+  into the Clinical Extractor.
+- `overall_confidence < 0.7` OR `requested_treatment.name` /
+  `primary_diagnosis.description` missing → `requires_human_review = True`
+  and the case is dispatched to the Reviewer queue with the
+  `low-evidence-from-intake` risk_flag pre-attached.
+
+This preserves the **safety-first** posture the rest of Authrex stands on —
+the model never silently APPROVES on a smudged biomarker.
+
+### 7B.3 CMS-0057-F § IV.A audit anchor
+
+Every uploaded document is hashed (SHA-256) and persisted to
+`intake_documents` alongside the IntakeResult. Every downstream
+`agent_runs` row that consumes a field traceable to the upload references
+the document via `source_resource_id = "intake-doc-{sha8}"`. A scanned-fax
+verdict is as auditable as a clean-FHIR verdict — both reconstructible from
+the audit ledger alone.
+
+### 7B.4 API surface
+
+```
+POST /api/v1/intake/parse-document
+       multipart/form-data with `file` field (image/png · image/jpeg ·
+       image/webp · application/pdf)
+       8 MB cap.
+   →   IntakeResult { classification, ocr, clinical_snapshot_partial,
+                      risk_flags, requires_human_review, audit }
+```
+
+Frontend: the **Drop a scan** route at `/intake` renders the result with
+per-field confidence colors (≥ 85% green, 70–85% amber, < 70% rose) and a
+"Create case" CTA gated on `requires_human_review = false`.
+
+### 7B.5 Why not AWS Textract?
+
+Textract is excellent for printed text + structured tables (and is a
+documented option in the architecture). For the demo, Claude Sonnet 4.6
+vision via Bedrock is preferred because:
+
+- One model handles printed AND handwritten content (no router needed)
+- Same `LLMClient` abstraction the rest of the system uses
+- Per-field confidence scoring is native to the Bedrock JSON output
+- Bounded-competency story is cleaner ("vision extractor is one sub-agent")
+
+Textract remains a documented fallback for tenants that need cheaper bulk
+OCR on typed-only documents — see `app/integrations/textract/` (planned).
+
 ## 8. LangGraph orchestration and state schema
 
 The orchestration is a LangGraph `StateGraph` with named nodes (one per agent) and conditional edges. State is a typed Pydantic model that flows through the graph and accumulates each agent's output.

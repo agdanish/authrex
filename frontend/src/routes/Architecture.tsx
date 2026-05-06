@@ -57,7 +57,7 @@ export default function Architecture() {
   }, []);
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto space-y-6">
+    <div className="px-6 py-6 space-y-6">
       <header>
         <div className="text-[10px] font-mono uppercase tracking-widest text-accent-brand mb-1">
           AUTHREX · TARGET ENTERPRISE ARCHITECTURE
@@ -86,22 +86,20 @@ export default function Architecture() {
             <Sparkles size={14} className="text-accent-brand" />
             <h2 className="text-sm font-semibold text-ink-primary">Primary KPIs</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
             {arch.primary_kpis.map((k) => (
               <div
                 key={k.id}
-                className="border border-surface-border rounded-lg p-3 bg-surface-panel/40"
+                className="border border-surface-border rounded-lg px-3 py-2 bg-surface-panel/40"
+                title={`Baseline: ${k.baseline}\nMeasured at: ${k.measurement_endpoint}`}
               >
-                <div className="text-xs font-medium text-ink-primary mb-1">{k.name}</div>
-                <div className="text-[11px] text-ink-muted leading-snug">
-                  Baseline: <span className="text-ink-body">{k.baseline}</span>
+                <div className="text-[11px] font-medium text-ink-primary truncate">{k.name}</div>
+                <div className="text-base font-semibold text-accent-green tabular-nums truncate mt-0.5">
+                  {k.target_range}
                 </div>
-                <div className="text-[11px] text-ink-muted leading-snug">
-                  Target: <strong className="text-accent-green">{k.target_range}</strong>
+                <div className="text-[10px] font-mono text-ink-faint truncate" title={k.baseline}>
+                  vs {k.baseline}
                 </div>
-                <code className="block mt-2 text-[10px] font-mono text-accent-cyan">
-                  {k.measurement_endpoint}
-                </code>
               </div>
             ))}
           </div>

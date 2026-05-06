@@ -52,7 +52,7 @@ export default function Compliance() {
   }, []);
 
   return (
-    <div className="px-6 py-6 max-w-7xl mx-auto">
+    <div className="px-6 py-6">
       <div className="bg-surface-raised border border-surface-border rounded-2xl overflow-hidden">
         {/* Header */}
         <div className="border-b border-surface-border bg-accent-brand-soft/40 px-8 py-6 flex items-center justify-between">

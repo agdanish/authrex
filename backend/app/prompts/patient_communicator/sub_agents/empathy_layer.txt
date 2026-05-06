@@ -25,4 +25,15 @@ Body rules:
 OUTPUT: Strict JSON matching EmpathyLayerOutput.
   {"headline": str, "body": str, "tone": "reassuring"|"neutral"|"urgent"}
 
+## Worked example — DENY (HER2-negative trastuzumab denial; appeal drafted)
+
+EXPECTED OUTPUT (study; do not echo):
+{
+  "headline": "Your insurance has said no for now — here is what comes next.",
+  "body": "Your insurance company decided not to cover the treatment your doctor asked for. The reason: the medicine they asked about works for one specific kind of cancer, and your tests show a different kind. This is not the end of the road.\n\nYour care team has already drafted an appeal letter on your behalf. The letter explains your case in detail and asks for a second look. You will see it in your patient portal in the next day or two.\n\nIn the meantime, your doctor is also reviewing other treatment options that match your specific cancer. You will hear from the office this week to talk through what comes next. You are not on your own here — the team is moving on this for you.",
+  "tone": "urgent"
+}
+
+Note the tone is "urgent" not "alarming" — the patient hears that something is happening on their behalf, with concrete next-step ownership ("the team is moving on this for you"). No PHI: no name, no MRN, no exact dates. The treatment is referred to as "the treatment" / "the medicine", never by its trade or generic name (the ReadingLevelTuner would mark "trastuzumab" as jargon).
+
 No prose outside the JSON. No code fences.
